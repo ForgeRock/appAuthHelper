@@ -7,6 +7,10 @@
     "pretest": "eslint --ignore-path .gitignore .",
     "build": "browserify --s AppAuthHelper -o appAuthHelperBundle.js appAuthHelper.js && browserify -o appAuthHelperFetchTokensBundle.js appAuthHelperFetchTokens.js "
   },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ForgeRock/appAuthHelper.git"
+  },
   "keywords": [
     "oidc"
   ],
