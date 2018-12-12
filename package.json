@@ -1,0 +1,27 @@
+{
+  "name": "appauthhelper",
+  "version": "0.0.1",
+  "description": "Wrapper for AppAuthJS to assist with silent token acquisition and renewal",
+  "main": "appAuthHelper.js",
+  "scripts": {
+    "pretest": "eslint --ignore-path .gitignore .",
+    "build": "browserify --s AppAuthHelper -o appAuthHelperBundle.js appAuthHelper.js && browserify -o appAuthHelperFetchTokensBundle.js appAuthHelperFetchTokens.js "
+  },
+  "keywords": [
+    "oidc"
+  ],
+  "author": "Jake Feasel",
+  "license": "Apache 2.0",
+  "dependencies": {
+    "@openid/appauth": "^1.2.0",
+    "browserify": "^16.2.3"
+  },
+  "devDependencies": {
+    "eslint": "^5.9.0",
+    "eslint-config-standard": "^12.0.0",
+    "eslint-plugin-import": "^2.14.0",
+    "eslint-plugin-node": "^8.0.0",
+    "eslint-plugin-promise": "^4.0.1",
+    "eslint-plugin-standard": "^4.0.0"
+  }
+}
