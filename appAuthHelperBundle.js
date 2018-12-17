@@ -23,6 +23,7 @@
          * @param {string} config.tokenEndpoint - Full URL to the OP token endpoint
          * @param {string} config.revocationEndpoint - Full URL to the OP revocation endpoint
          * @param {string} config.endSessionEndpoint - Full URL to the OP end session endpoint
+         * @param {function} config.interactionRequiredHandler - optional function to be called anytime interaction is required. When not provided, default behavior is to redirect the current window to the authorizationEndpoint
          * @param {function} config.tokensAvailableHandler - function to be called every time tokens are available - both initially and upon renewal
          * @param {number} config.renewCooldownPeriod [1] - Minimum time (in seconds) between requests to the authorizationEndpoint for token renewal attempts
          * @param {string} config.redirectUri [appAuthHelperRedirect.html] - The redirect uri registered in the OP
@@ -31,9 +32,10 @@
             var calculatedUriLink,
                 iframe = document.createElement("iframe");
 
-            this.renewCooldownPeriod = config.renewCooldownPeriod || 1000;
+            this.renewCooldownPeriod = config.renewCooldownPeriod || 1;
             this.appAuthConfig = {};
             this.tokensAvailableHandler = config.tokensAvailableHandler;
+            this.interactionRequiredHandler = config.interactionRequiredHandler;
 
             if (!config.redirectUri) {
                 calculatedUriLink = document.createElement("a");
@@ -83,14 +85,21 @@
                     }
                     break;
                 case "appAuth-interactionRequired":
-                    // When interaction is required, the current hash state may be lost during redirection.
-                    // Save it in sessionStorage so that it can be returned to upon successfully authenticating
-                    sessionStorage.setItem("originalWindowHash", window.location.hash);
+                    if (this.interactionRequiredHandler) {
+                        this.interactionRequiredHandler();
+                    } else {
+                        // Default behavior for when interaction is required is to redirect to the OP for login.
 
-                    // Use the default redirect request handler, because it will use the current window
-                    // as the redirect target (rather than the hidden iframe).
-                    this.client.authorizationHandler = (new AppAuth.RedirectRequestHandler());
-                    authnRequest(this.client, this.appAuthConfig);
+                        // When interaction is required, the current hash state may be lost during redirection.
+                        // Save it in sessionStorage so that it can be returned to upon successfully authenticating
+                        sessionStorage.setItem("originalWindowHash", window.location.hash);
+
+                        // Use the default redirect request handler, because it will use the current window
+                        // as the redirect target (rather than the hidden iframe).
+                        this.client.authorizationHandler = (new AppAuth.RedirectRequestHandler());
+                        authnRequest(this.client, this.appAuthConfig);
+                    }
+
                     break;
                 }
             }).bind(this), false);
@@ -187,7 +196,7 @@
         },
         renewTokens: function () {
             var timestamp = (new Date()).getTime();
-            if (!this.renewTokenTimestamp || (this.renewTokenTimestamp + this.renewCooldownPeriod) < timestamp) {
+            if (!this.renewTokenTimestamp || (this.renewTokenTimestamp + (this.renewCooldownPeriod*1000)) < timestamp) {
                 this.renewTokenTimestamp = timestamp;
                 // update reference to iframe, to ensure it is still valid
                 this.client.authorizationHandler = new AppAuth.RedirectRequestHandler(
