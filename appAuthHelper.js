@@ -127,6 +127,7 @@
             } else {
                 tokenHandler = new AppAuth.BaseTokenRequestHandler({
                     // fetch-based alternative to built-in jquery implementation
+                    // TODO: replace with new AppAuth option
                     xhr: function (settings) {
                         return new Promise(function (resolve, reject) {
                             fetch(settings.url, {
@@ -156,6 +157,18 @@
                 ),
                 tokenHandler: tokenHandler
             };
+        },
+        /**
+         * Pass in a reference to an iframe element that you would like to use to handle the AS redirection,
+         * rather than relying on a full-page redirection.
+         */
+        iframeRedirect: function (iframe) {
+            // Use a provided iframe element to handle the authentication request.
+            this.client.authorizationHandler = (new AppAuth.RedirectRequestHandler(
+                // handle redirection within the hidden iframe
+                void 0, void 0, iframe.contentWindow.location
+            ));
+            authnRequest(this.client, this.appAuthConfig);
         },
         /**
          * Begins process which will either get the tokens that are in session storage or will attempt to

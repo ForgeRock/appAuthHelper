@@ -9,6 +9,7 @@ The primary goal of both AppAuth and this helper is to allow your single-page ap
 There are several aspects that this helper aims to support:
 
  - **Simpler application integration**
+ - **Embedded log in using an iframe**
  - **Simple log out support**
  - **Silent token acquisition**
  - **Silent access token renewal**
@@ -63,6 +64,18 @@ Once the library is loaded, you have to provide the environmental details for th
         tokenEndpoint: "https://login.example.com/oauth2/access_token",
         revocationEndpoint: "https://login.example.com/oauth2/token/revoke",
         endSessionEndpoint: "https://login.example.com/oauth2/connect/endSession",
+        interactionRequiredHandler: function () {
+            // Add whatever is appropriate for your app to do when the user needs to log in.
+            // Default behavior (when this handler is unspecified) is to redirect the window
+            // to the authorizationEndpoint.
+
+            // A good example of something you might want to do is render the authorizationEndpoint login prompt
+            // within an iframe (for a more tightly-integrated login experience). You can do that like so:
+
+            AppAuthHelper.iframeRedirect(document.getElementById('loginIframe'));
+
+            // this assumes that 'loginIframe' is an iframe that has already been mounted to the DOM
+        },
         tokensAvailableHandler: function (claims) {
             // whatever your application should do once tokens are available
             // the "claims" argument is the content from the id token
@@ -86,6 +99,7 @@ Once the library is loaded, you have to provide the environmental details for th
  - revocationEndpoint - Full URL to the OP revocation endpoint
  - endSessionEndpoint - Full URL to the OP end session endpoint
  - tokensAvailableHandler - function to be called every time tokens are available - both initially and upon renewal
+ - interactionRequiredHandler - optional function to be called when the user needs to interact with the OP; for example, to log in.
  - renewCooldownPeriod [default: 1] - Minimum time (in seconds) between requests to the authorizationEndpoint for token renewal attempts
  - redirectUri [default: appAuthHelperRedirect.html] - The redirect uri registered in the OP
 
@@ -99,13 +113,17 @@ When this function is called, the library will work to return tokens to your app
 
 If there is no way to fetch the tokens non-interactively, then the parent frame will be redirected to the OP authorization endpoint, allowing the user to log in (and possibly provide consent for this RP). Upon successful authentication, the OP will redirect you back to the configured "redirectUri" which will resume execution within your SPA (ultimately using the authorization code returned to fetch the tokens and save them in sessionStorage).
 
+*Logging in within an iframe:*
+
+If you want your users to be able to log in without having to leave your app, you can render an iframe within it and then provide the frame reference to `AppAuthHelper.iframeRedirect`. This will trigger an immediate call to the OP's authentication endpoint within the context of that frame. When the user returns from the OP, the `tokensAvailableHandler` will be triggered in the same way as it would if the user had been redirected within the context of the full window.
+
 *Logging Out:*
 
     AppAuthHelper.logout().then(function () {
         // whatever your application should do after the tokens are removed
     });
 
-Calling logout will trigger calls to both the access token revocation endpoint, as well as the id token end session endpoint. When both of those have completed, the promise returned from the "logout()" call will be resolved. At that point you can call `.then()` and do whatever is appropriate for your application.
+Calling `logout()` will trigger calls to both the access token revocation endpoint, as well as the id token end session endpoint. When both of those have completed, the promise returned from the `logout()` call will be resolved. At that point you can call `.then()` and do whatever is appropriate for your application.
 
 ### Using Tokens
 
