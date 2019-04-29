@@ -82,9 +82,20 @@
                 appAuthClient.tokenHandler
                     .performTokenRequest(appAuthClient.configuration, request)
                     .then(function (token_endpoint_response) {
-                        sessionStorage.setItem("accessToken", token_endpoint_response.accessToken);
-                        sessionStorage.setItem("idToken", token_endpoint_response.idToken);
-                        parent.postMessage( "appAuth-tokensAvailable", document.location.origin);
+                        var dbReq = indexedDB.open("appAuth",1);
+                        dbReq.onupgradeneeded = function () {
+                            dbReq.result.createObjectStore(appAuthClient.clientId);
+                        };
+                        dbReq.onsuccess = function () {
+                            var objectStoreRequest = dbReq.result.transaction([appAuthClient.clientId], "readwrite")
+                                .objectStore(appAuthClient.clientId).add({
+                                    "accessToken": token_endpoint_response.accessToken,
+                                    "idToken": token_endpoint_response.idToken
+                                }, "tokens");
+                            objectStoreRequest.onsuccess = function () {
+                                parent.postMessage( "appAuth-tokensAvailable", document.location.origin);
+                            };
+                        };
                     });
             } else if (appAuthClient.error) {
                 parent.postMessage("appAuth-interactionRequired", document.location.origin);

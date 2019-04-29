@@ -3,12 +3,6 @@
 
     var AppAuth = require("@openid/appauth");
 
-    // track xhr requests which have failed due to token expiration
-    var pendingQueue = [];
-    function addRequestToPendingQueue(xhr) {
-        pendingQueue.push(xhr);
-    }
-
     /**
      * Module used to easily setup AppAuthJS in a way that allows it to transparently obtain and renew access tokens
      * @module AppAuthHelper
@@ -22,6 +16,7 @@
          * @param {string} config.tokenEndpoint - Full URL to the OP token endpoint
          * @param {string} config.revocationEndpoint - Full URL to the OP revocation endpoint
          * @param {string} config.endSessionEndpoint - Full URL to the OP end session endpoint
+         * @param {array} config.resourceServers - List of strings which indicate which resource servers should automatically receive access tokens in their requests
          * @param {function} config.interactionRequiredHandler - optional function to be called anytime interaction is required. When not provided, default behavior is to redirect the current window to the authorizationEndpoint
          * @param {function} config.tokensAvailableHandler - function to be called every time tokens are available - both initially and upon renewal
          * @param {number} config.renewCooldownPeriod [1] - Minimum time (in seconds) between requests to the authorizationEndpoint for token renewal attempts
@@ -45,6 +40,7 @@
                 this.appAuthConfig.redirectUri = config.redirectUri;
             }
 
+            this.appAuthConfig.resourceServers = config.resourceServers;
             this.appAuthConfig.clientId = config.clientId;
             this.appAuthConfig.scopes = config.scopes;
             this.appAuthConfig.endpoints = {
@@ -65,23 +61,11 @@
                         window.location.hash = originalWindowHash;
                         sessionStorage.removeItem("originalWindowHash");
                     }
-                    this.tokensAvailableHandler(getIdTokenClaims());
 
-                    /**
-                     * Check to see if there are any pending requests queued. If so, complete
-                     * the callbacks for each of them. We delay the callbacks until now so that the xhr
-                     * failure handlers can immediately retry their request, knowing the tokens
-                     * saved in sessionStorage will be current.
-                     */
-                    var xhr = pendingQueue.shift();
-                    while (xhr) {
-                        if (xhr.eventListenerCallbackQueue["loadend"]) {
-                            xhr.eventListenerCallbackQueue["loadend"].forEach(function (callback) {
-                                callback(xhr);
-                            });
-                        }
-                        xhr = pendingQueue.shift();
-                    }
+                    this.registerServiceWorker()
+                        .then(() => this.fetchTokensFromIndexedDB())
+                        .then((tokens) => this.tokensAvailableHandler(getIdTokenClaims(tokens.idToken)));
+
                     break;
                 case "appAuth-interactionRequired":
                     if (this.interactionRequiredHandler) {
@@ -176,35 +160,42 @@
          * tokens are still valid, however - you must be prepared to handle the case when they are not.
          */
         getTokens: function () {
-            if (!sessionStorage.getItem("accessToken") || !sessionStorage.getItem("idToken")) {
-                // attempt silent authorization
-                authnRequest(this.client, this.appAuthConfig, { "prompt": "none" });
-            } else {
-                this.tokensAvailableHandler(getIdTokenClaims());
-            }
+            this.fetchTokensFromIndexedDB().then((tokens) => {
+                if (!tokens || !tokens.accessToken || !tokens.idToken) {
+                    // attempt silent authorization
+                    authnRequest(this.client, this.appAuthConfig, { "prompt": "none" });
+                } else {
+                    this.registerServiceWorker()
+                        .then(() => this.tokensAvailableHandler(getIdTokenClaims(tokens.idToken)));
+                }
+            });
         },
         /**
          * logout() will revoke the access token, use the id_token to end the session on the OP, clear them from the
          * local session, and finally notify the SPA that they are gone.
          */
         logout: function () {
-            if (!sessionStorage.getItem("accessToken")) {
-                return;
-            }
-            var revokeRequest = new AppAuth.RevokeTokenRequest({
-                client_id: this.appAuthConfig.clientId,
-                token: sessionStorage.getItem("accessToken")
-            });
-            return this.client.tokenHandler
-                .performRevokeTokenRequest(this.client.configuration, revokeRequest)
-                .then((function () {
-                    return fetch(this.client.configuration.endSessionEndpoint +
-                        "?id_token_hint=" + sessionStorage.getItem("idToken"));
-                }).bind(this))
-                .then(function () {
-                    sessionStorage.removeItem("accessToken");
-                    sessionStorage.removeItem("idToken");
+            return this.fetchTokensFromIndexedDB().then((tokens) => {
+                if (!tokens) {
+                    return;
+                }
+                var revokeRequest = new AppAuth.RevokeTokenRequest({
+                    client_id: this.appAuthConfig.clientId,
+                    token: tokens.accessToken
                 });
+                return this.client.tokenHandler
+                    .performRevokeTokenRequest(this.client.configuration, revokeRequest)
+                    .then(() => fetch(this.client.configuration.endSessionEndpoint + "?id_token_hint=" + tokens.idToken))
+                    .then(() => new Promise((resolve, reject) => {
+                        var dbReq = indexedDB.open("appAuth",1);
+                        dbReq.onsuccess = () => {
+                            var objectStoreRequest = dbReq.result.transaction([this.appAuthConfig.clientId], "readwrite")
+                                .objectStore(this.appAuthConfig.clientId).clear();
+                            objectStoreRequest.onsuccess = resolve;
+                        };
+                        dbReq.onerror = reject;
+                    }));
+            });
         },
         renewTokens: function () {
             var timestamp = (new Date()).getTime();
@@ -217,6 +208,48 @@
                 );
                 authnRequest(this.client, this.appAuthConfig, { "prompt": "none" });
             }
+        },
+        fetchTokensFromIndexedDB: function () {
+            return new Promise((resolve, reject) => {
+                var dbReq = indexedDB.open("appAuth",1);
+                dbReq.onupgradeneeded = () => {
+                    dbReq.result.createObjectStore(this.appAuthConfig.clientId);
+                };
+                dbReq.onsuccess = () => {
+                    var objectStoreRequest = dbReq.result.transaction([this.appAuthConfig.clientId], "readonly")
+                        .objectStore(this.appAuthConfig.clientId).get("tokens");
+                    objectStoreRequest.onsuccess = () => {
+                        resolve(objectStoreRequest.result);
+                    };
+                    objectStoreRequest.onerror = reject;
+                };
+                dbReq.onerror = reject;
+            });
+        },
+        registerServiceWorker: function () {
+            return new Promise((resolve, reject) => {
+                if ("serviceWorker" in navigator) {
+                    navigator.serviceWorker.register("appAuthServiceWorker.js")
+                        .then((reg) => {
+                            var sendConfigMessage = () => {
+                                var msg_chan = new MessageChannel();
+                                msg_chan.port1.onmessage = () => {
+                                    resolve();
+                                };
+                                reg.active.postMessage(this.appAuthConfig, [msg_chan.port2]);
+                            };
+
+                            if (reg.active) {
+                                sendConfigMessage();
+                            } else {
+                                navigator.serviceWorker.addEventListener("controllerchange", () => {
+                                    sendConfigMessage();
+                                });
+                            }
+                        })
+                        .catch(reject);
+                }
+            });
         }
     };
 
@@ -242,108 +275,10 @@
     /**
      * Simple jwt parsing code purely used for extracting claims.
      */
-    function getIdTokenClaims() {
+    function getIdTokenClaims(id_token) {
         return JSON.parse(
-            atob(sessionStorage.getItem("idToken").split(".")[1].replace("-", "+").replace("_", "/"))
+            atob(id_token.split(".")[1].replace("-", "+").replace("_", "/"))
         );
     }
-
-    /**
-     * Accepts an xhr object that has been completed (after "loadend") and checks to see
-     * if it includes a response header that indicated that it failed due to an invalid token
-     * @returns boolean - true if due to invalid_token, false otherwise
-     */
-    function checkForTokenFailure(xhr) {
-        var response_headers = xhr.getAllResponseHeaders()
-            .split("\n")
-            .map(function (header) {
-                return header.split(": ");
-            })
-            .reduce(function (result, pair) {
-                if (pair.length === 2) {
-                    result[pair[0]] = pair[1];
-                }
-                return result;
-            }, {});
-
-        if (response_headers["www-authenticate"] && response_headers["www-authenticate"].match(/^Bearer /)) {
-            var auth_details = response_headers["www-authenticate"]
-                .replace(/^Bearer /, "")
-                .match(/[^,=]+=".*?"/g)
-                .reduce(function (result, detail) {
-                    var pair = detail.split("=");
-                    result[pair[0]] = pair[1].replace(/"(.*)"/, "$1");
-                    return result;
-                }, {});
-
-            if (auth_details["error"] === "invalid_token") {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    /*
-     * Override default implementations of the XMLHttpRequest object, so as to provide
-     * the option to automatically renew tokens upon token failures.
-     */
-    var RealXHRSend = XMLHttpRequest.prototype.send;
-    var RealEventListener = XMLHttpRequest.prototype.addEventListener;
-
-    /**
-     * Overrides the addEventListener method by adding a "queue" mechanism. This way all event listeners
-     * will be notified in the order they requested, but only when we are ready for them to be notified.
-     */
-    XMLHttpRequest.prototype.addEventListener = function (name, callback) {
-        if (!this.eventListenerCallbackQueue) {
-            this.eventListenerCallbackQueue = {};
-        }
-        if (!this.eventListenerCallbackQueue[name]) {
-            this.eventListenerCallbackQueue[name] = [callback];
-        } else {
-            this.eventListenerCallbackQueue[name].push(callback);
-        }
-    };
-
-    /**
-     * Override send method of all XHR requests in order to intercept invalid_token failures
-     */
-    XMLHttpRequest.prototype.send = function() {
-        var xhr = this;
-        var RealOnLoad = xhr.onload;
-
-        // every event besides "loadend" will be just sent to the built-in event listener
-        ["loadstart","progress","error","abort","load"].forEach((function (eventName) {
-            if (this.eventListenerCallbackQueue && this.eventListenerCallbackQueue[eventName]) {
-                this.eventListenerCallbackQueue[eventName].forEach(function (callback) {
-                    RealEventListener.call(xhr, eventName, callback);
-                });
-            }
-        }).bind(this));
-
-        if (RealOnLoad) {
-            xhr.addEventListener("loadend", RealOnLoad);
-            xhr.onload = null;
-        }
-
-        // "loadend" will be handled by us, first
-        RealEventListener.call(xhr, "loadend", function() {
-            if (checkForTokenFailure(xhr)) {
-                // It is possible that multiple simultaneous xhr requests will fail before we can renew the token.
-                // This is why we add them all to a queue, while we wait for the new token to be available.
-                addRequestToPendingQueue(xhr);
-                // We ask the AppAuthHelper to renew the tokens for us
-                module.exports.renewTokens();
-            } else if (this.eventListenerCallbackQueue && this.eventListenerCallbackQueue["loadend"]) {
-                xhr.eventListenerCallbackQueue["loadend"].forEach(function (callback) {
-                    callback(xhr);
-                });
-            }
-        }, false);
-
-        RealXHRSend.apply(this, arguments);
-    };
-
 
 }());
