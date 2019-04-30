@@ -88,12 +88,17 @@
                         };
                         dbReq.onsuccess = function () {
                             var objectStoreRequest = dbReq.result.transaction([appAuthClient.clientId], "readwrite")
-                                .objectStore(appAuthClient.clientId).add({
+                                .objectStore(appAuthClient.clientId).put({
                                     "accessToken": token_endpoint_response.accessToken,
                                     "idToken": token_endpoint_response.idToken
                                 }, "tokens");
                             objectStoreRequest.onsuccess = function () {
+                                dbReq.result.close();
                                 parent.postMessage( "appAuth-tokensAvailable", document.location.origin);
+                            };
+                            objectStoreRequest.onerror = function (error) {
+                                debugger;
+                                console.error(error);
                             };
                         };
                     });
