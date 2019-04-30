@@ -67,6 +67,10 @@
                         .then(() => this.fetchTokensFromIndexedDB())
                         .then((tokens) => this.tokensAvailableHandler(getIdTokenClaims(tokens.idToken)));
 
+                    navigator.serviceWorker.controller.postMessage({
+                        "message": "tokensRenewed"
+                    });
+
                     break;
                 case "appAuth-interactionRequired":
                     if (this.interactionRequiredHandler) {
@@ -192,6 +196,7 @@
                         dbReq.onsuccess = () => {
                             var objectStoreRequest = dbReq.result.transaction([this.appAuthConfig.clientId], "readwrite")
                                 .objectStore(this.appAuthConfig.clientId).clear();
+                            dbReq.result.close();
                             objectStoreRequest.onsuccess = resolve;
                         };
                         dbReq.onerror = reject;
@@ -220,11 +225,21 @@
                     var objectStoreRequest = dbReq.result.transaction([this.appAuthConfig.clientId], "readonly")
                         .objectStore(this.appAuthConfig.clientId).get("tokens");
                     objectStoreRequest.onsuccess = () => {
-                        resolve(objectStoreRequest.result);
+                        var tokens = objectStoreRequest.result;
+                        dbReq.result.close();
+                        resolve(tokens);
                     };
                     objectStoreRequest.onerror = reject;
                 };
                 dbReq.onerror = reject;
+            });
+        },
+        receiveMessageFromServiceWorker: function (event) {
+            return new Promise((resolve, reject) => {
+                if (event.data === "renewTokens") {
+                    this.renewTokens();
+                }
+                resolve();
             });
         },
         registerServiceWorker: function () {
@@ -233,11 +248,13 @@
                     navigator.serviceWorker.register("appAuthServiceWorker.js")
                         .then((reg) => {
                             var sendConfigMessage = () => {
-                                var msg_chan = new MessageChannel();
-                                msg_chan.port1.onmessage = () => {
-                                    resolve();
-                                };
-                                reg.active.postMessage(this.appAuthConfig, [msg_chan.port2]);
+                                this.serviceWorkerMessageChannel = new MessageChannel();
+                                this.serviceWorkerMessageChannel.port1.onmessage = (event) =>
+                                    this.receiveMessageFromServiceWorker(event).then(() => resolve());
+                                reg.active.postMessage({
+                                    "message": "configuration",
+                                    "config": this.appAuthConfig
+                                }, [this.serviceWorkerMessageChannel.port2]);
                             };
 
                             if (reg.active) {
