@@ -25,7 +25,7 @@
         window.location.hash = queryString;
 
         var appAuthHelperRedirectScript = document.createElement("script");
-        appAuthHelperRedirectScript.src = "node_modules/appauthhelper/appAuthHelperFetchTokensBundle.js";
+        appAuthHelperRedirectScript.src = "appAuthHelperFetchTokensBundle.js";
         appAuthHelperRedirectScript.async = false;
         document.getElementsByTagName("head")[0].appendChild(appAuthHelperRedirectScript);
     }
