@@ -12,12 +12,12 @@
         /** @function init
          * @param {Object} config - configation needed for working with the OP
          * @param {string} config.clientId - The id of this RP client within the OP
-         * @param {string} config.scopes - Space-delimited list of scopes requested by this RP
+         * @param {boolean} config.oidc [true] - indicate whether or not you want OIDC included
          * @param {string} config.authorizationEndpoint - Full URL to the OP authorization endpoint
          * @param {string} config.tokenEndpoint - Full URL to the OP token endpoint
          * @param {string} config.revocationEndpoint - Full URL to the OP revocation endpoint
          * @param {string} config.endSessionEndpoint - Full URL to the OP end session endpoint
-         * @param {array} config.resourceServers - List of strings which indicate which resource servers should automatically receive access tokens in their requests
+         * @param {object} config.resourceServers - Map of resource server urls to the scopes which they require. Map values are space-delimited list of scopes requested by this RP for use with this RS
          * @param {function} config.interactionRequiredHandler - optional function to be called anytime interaction is required. When not provided, default behavior is to redirect the current window to the authorizationEndpoint
          * @param {function} config.tokensAvailableHandler - function to be called every time tokens are available - both initially and upon renewal
          * @param {number} config.renewCooldownPeriod [1] - Minimum time (in seconds) between requests to the authorizationEndpoint for token renewal attempts
@@ -31,6 +31,8 @@
             this.appAuthConfig = {};
             this.tokensAvailableHandler = config.tokensAvailableHandler;
             this.interactionRequiredHandler = config.interactionRequiredHandler;
+            this.appAuthConfig.oidc = typeof config.oidc !== "undefined" ? !!config.oidc : true;
+            this.pendingResourceServerRenewals = [];
 
             if (!config.redirectUri) {
                 calculatedUriLink = document.createElement("a");
@@ -41,9 +43,15 @@
                 this.appAuthConfig.redirectUri = config.redirectUri;
             }
 
-            this.appAuthConfig.resourceServers = config.resourceServers;
+            this.appAuthConfig.resourceServers = config.resourceServers || {};
             this.appAuthConfig.clientId = config.clientId;
-            this.appAuthConfig.scopes = config.scopes;
+            this.appAuthConfig.scopes = (this.appAuthConfig.oidc ? ["openid"] : [])
+                .concat(
+                    Object.keys(this.appAuthConfig.resourceServers).reduce((scopes, rs) =>
+                        scopes.concat(this.appAuthConfig.resourceServers[rs])
+                    , [])
+                ).join(" ");
+
             this.appAuthConfig.endpoints = {
                 "authorization_endpoint": config.authorizationEndpoint,
                 "token_endpoint": config.tokenEndpoint,
@@ -63,13 +71,27 @@
                         sessionStorage.removeItem("originalWindowHash");
                     }
 
-                    this.registerServiceWorker()
-                        .then(() => this.fetchTokensFromIndexedDB())
-                        .then((tokens) => this.tokensAvailableHandler(getIdTokenClaims(tokens.idToken)));
+                    // this should only be set as part of token renewal
+                    if (sessionStorage.getItem("currentResourceServer")) {
+                        var currentResourceServer = sessionStorage.getItem("currentResourceServer");
+                        sessionStorage.removeItem("currentResourceServer");
+                        this.renewTokenTimestamp = false;
 
-                    navigator.serviceWorker.controller.postMessage({
-                        "message": "tokensRenewed"
-                    });
+                        if (this.pendingResourceServerRenewals.length) {
+                            this.pendingResourceServerRenewals.shift()();
+                        }
+
+                        navigator.serviceWorker.controller.postMessage({
+                            "message": "tokensRenewed",
+                            "resourceServer": currentResourceServer
+                        });
+                    } else {
+                        this.registerServiceWorker()
+                            .then(() => this.fetchTokensFromIndexedDB())
+                            .then((tokens) =>
+                                this.tokensAvailableHandler(this.appAuthConfig.oidc ? getIdTokenClaims(tokens.idToken) : {})
+                            );
+                    }
 
                     break;
                 case "appAuth-interactionRequired":
@@ -166,12 +188,12 @@
          */
         getTokens: function () {
             this.fetchTokensFromIndexedDB().then((tokens) => {
-                if (!tokens || !tokens.accessToken || !tokens.idToken) {
+                if (!tokens) {
                     // attempt silent authorization
                     authnRequest(this.client, this.appAuthConfig, { "prompt": "none" });
                 } else {
                     this.registerServiceWorker()
-                        .then(() => this.tokensAvailableHandler(getIdTokenClaims(tokens.idToken)));
+                        .then(() => this.tokensAvailableHandler(this.appAuthConfig.oidc ? getIdTokenClaims(tokens.idToken) : {}));
                 }
             });
         },
@@ -184,36 +206,76 @@
                 if (!tokens) {
                     return;
                 }
-                var revokeRequest = new AppAuth.RevokeTokenRequest({
-                    client_id: this.appAuthConfig.clientId,
-                    token: tokens.accessToken
-                });
-                return this.client.tokenHandler
-                    .performRevokeTokenRequest(this.client.configuration, revokeRequest)
-                    .then(() => fetch(this.client.configuration.endSessionEndpoint + "?id_token_hint=" + tokens.idToken))
-                    .then(() => new Promise((resolve, reject) => {
-                        var dbReq = indexedDB.open("appAuth",1);
-                        dbReq.onsuccess = () => {
-                            var objectStoreRequest = dbReq.result.transaction([this.appAuthConfig.clientId], "readwrite")
-                                .objectStore(this.appAuthConfig.clientId).clear();
-                            dbReq.result.close();
-                            objectStoreRequest.onsuccess = resolve;
-                        };
-                        dbReq.onerror = reject;
+                var revokeRequests = [];
+                if (tokens.accessToken) {
+                    revokeRequests.push(new AppAuth.RevokeTokenRequest({
+                        client_id: this.appAuthConfig.clientId,
+                        token: tokens.accessToken
                     }));
+                }
+
+                return Promise.all(revokeRequests.concat(
+                    Object.keys(this.appAuthConfig.resourceServers)
+                        .filter((rs) => !!tokens[rs])
+                        .map((rs) =>
+                            new AppAuth.RevokeTokenRequest({
+                                client_id: this.appAuthConfig.clientId,
+                                token: tokens[rs]
+                            })
+                        )
+                    )
+                    .map((revokeRequest) =>
+                        this.client.tokenHandler.performRevokeTokenRequest(
+                            this.client.configuration,
+                            revokeRequest
+                        )
+                    )
+                )
+                .then(() => {
+                    if (this.appAuthConfig.oidc && tokens.idToken && this.client.configuration.endSessionEndpoint) {
+                        return fetch(this.client.configuration.endSessionEndpoint + "?id_token_hint=" + tokens.idToken);
+                    } else {
+                        return;
+                    }
+                })
+                .then(() => new Promise((resolve, reject) => {
+                    var dbReq = indexedDB.open("appAuth",1);
+                    dbReq.onsuccess = () => {
+                        var objectStoreRequest = dbReq.result.transaction([this.appAuthConfig.clientId], "readwrite")
+                            .objectStore(this.appAuthConfig.clientId).clear();
+                        dbReq.result.close();
+                        objectStoreRequest.onsuccess = resolve;
+                    };
+                    dbReq.onerror = reject;
+                }));
             });
         },
-        renewTokens: function () {
-            var timestamp = (new Date()).getTime();
-            if (!this.renewTokenTimestamp || (this.renewTokenTimestamp + (this.renewCooldownPeriod*1000)) < timestamp) {
-                this.renewTokenTimestamp = timestamp;
-                // update reference to iframe, to ensure it is still valid
-                this.client.authorizationHandler = new AppAuth.RedirectRequestHandler(
-                    // handle redirection within the hidden iframe
-                    void 0, void 0, document.getElementById("AppAuthHelper").contentWindow.location
-                );
-                authnRequest(this.client, this.appAuthConfig, { "prompt": "none" });
-            }
+        whenRenewTokenFrameAvailable: function (resourceServer) {
+            return new Promise((resolve) => {
+                var currentResourceServer = sessionStorage.getItem("currentResourceServer");
+                if (currentResourceServer === null || resourceServer === currentResourceServer) {
+                    resolve();
+                } else {
+                    this.pendingResourceServerRenewals.push(resolve);
+                }
+            });
+        },
+        renewTokens: function (resourceServer) {
+            this.whenRenewTokenFrameAvailable(resourceServer).then(() => {
+                var timestamp = (new Date()).getTime();
+                sessionStorage.setItem("currentResourceServer", resourceServer);
+                if (!this.renewTokenTimestamp || (this.renewTokenTimestamp + (this.renewCooldownPeriod*1000)) < timestamp) {
+                    this.renewTokenTimestamp = timestamp;
+                    // update reference to iframe, to ensure it is still valid
+                    this.client.authorizationHandler = new AppAuth.RedirectRequestHandler(
+                        // handle redirection within the hidden iframe
+                        void 0, void 0, document.getElementById("AppAuthHelper").contentWindow.location
+                    );
+                    var rsConfig = Object.create(this.appAuthConfig);
+                    rsConfig.scopes = this.appAuthConfig.resourceServers[resourceServer];
+                    authnRequest(this.client, rsConfig, { "prompt": "none" });
+                }
+            });
         },
         fetchTokensFromIndexedDB: function () {
             return new Promise((resolve, reject) => {
@@ -235,9 +297,9 @@
             });
         },
         receiveMessageFromServiceWorker: function (event) {
-            return new Promise((resolve, reject) => {
-                if (event.data === "renewTokens") {
-                    this.renewTokens();
+            return new Promise((resolve) => {
+                if (event.data.message === "renewTokens") {
+                    this.renewTokens(event.data.resourceServer);
                 }
                 resolve();
             });

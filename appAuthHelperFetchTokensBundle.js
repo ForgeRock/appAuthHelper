@@ -5,8 +5,29 @@
     var AppAuth = require("@openid/appauth");
 
     var appAuthConfig = JSON.parse(sessionStorage.getItem("appAuthConfig")),
+        currentResourceServer = sessionStorage.getItem("currentResourceServer"),
         appAuthClient,
         tokenHandler;
+
+    function fetchTokensFromIndexedDB() {
+        return new Promise((resolve, reject) => {
+            var dbReq = indexedDB.open("appAuth",1);
+            dbReq.onupgradeneeded = () => {
+                dbReq.result.createObjectStore(appAuthConfig.clientId);
+            };
+            dbReq.onsuccess = () => {
+                var objectStoreRequest = dbReq.result.transaction([appAuthConfig.clientId], "readonly")
+                    .objectStore(appAuthConfig.clientId).get("tokens");
+                objectStoreRequest.onsuccess = () => {
+                    var tokens = objectStoreRequest.result;
+                    dbReq.result.close();
+                    resolve(tokens);
+                };
+                objectStoreRequest.onerror = reject;
+            };
+            dbReq.onerror = reject;
+        });
+    }
 
     if (typeof Promise === "undefined" || typeof fetch === "undefined") {
         // Fall back to default, jQuery-based implementation for legacy browsers (IE).
@@ -87,19 +108,29 @@
                             dbReq.result.createObjectStore(appAuthClient.clientId);
                         };
                         dbReq.onsuccess = function () {
-                            var objectStoreRequest = dbReq.result.transaction([appAuthClient.clientId], "readwrite")
-                                .objectStore(appAuthClient.clientId).put({
-                                    "accessToken": token_endpoint_response.accessToken,
-                                    "idToken": token_endpoint_response.idToken
-                                }, "tokens");
-                            objectStoreRequest.onsuccess = function () {
-                                dbReq.result.close();
-                                parent.postMessage( "appAuth-tokensAvailable", document.location.origin);
-                            };
-                            objectStoreRequest.onerror = function (error) {
-                                debugger;
-                                console.error(error);
-                            };
+                            fetchTokensFromIndexedDB().then((tokens) => {
+                                var objectStoreRequest;
+                                if (!tokens) {
+                                    tokens = {};
+                                }
+
+                                if (token_endpoint_response.idToken) {
+                                    tokens["idToken"] = token_endpoint_response.idToken;
+                                }
+
+                                if (currentResourceServer !== null) {
+                                    tokens[currentResourceServer] = token_endpoint_response.accessToken;
+                                } else {
+                                    tokens.accessToken = token_endpoint_response.accessToken;
+                                }
+
+                                objectStoreRequest = dbReq.result.transaction([appAuthClient.clientId], "readwrite")
+                                    .objectStore(appAuthClient.clientId).put(tokens, "tokens");
+                                objectStoreRequest.onsuccess = function () {
+                                    dbReq.result.close();
+                                    parent.postMessage( "appAuth-tokensAvailable", document.location.origin);
+                                };
+                            });
                         };
                     });
             } else if (appAuthClient.error) {
