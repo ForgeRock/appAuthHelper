@@ -21,6 +21,7 @@
          * @param {function} config.tokensAvailableHandler - function to be called every time tokens are available - both initially and upon renewal
          * @param {number} config.renewCooldownPeriod [1] - Minimum time (in seconds) between requests to the authorizationEndpoint for token renewal attempts
          * @param {string} config.redirectUri [appAuthHelperRedirect.html] - The redirect uri registered in the OP
+         * @param {string} config.serviceWorkerUri [appAuthServiceWorker.js] - The path to the service worker script
          */
         init: function (config) {
             var calculatedUriLink,
@@ -41,6 +42,16 @@
             } else {
                 this.appAuthConfig.redirectUri = config.redirectUri;
             }
+
+            if (!config.serviceWorkerUri) {
+                calculatedUriLink = document.createElement("a");
+                calculatedUriLink.href = "appAuthServiceWorker.js";
+
+                this.appAuthConfig.serviceWorkerUri = calculatedUriLink.href;
+            } else {
+                this.appAuthConfig.serviceWorkerUri = config.serviceWorkerUri;
+            }
+
 
             this.appAuthConfig.resourceServers = config.resourceServers || {};
             this.appAuthConfig.clientId = config.clientId;
@@ -306,7 +317,7 @@
         registerServiceWorker: function () {
             return new Promise((resolve, reject) => {
                 if ("serviceWorker" in navigator) {
-                    navigator.serviceWorker.register("appAuthServiceWorker.js")
+                    navigator.serviceWorker.register(this.appAuthConfig.serviceWorkerUri)
                         .then((reg) => {
                             var sendConfigMessage = () => {
                                 this.serviceWorkerMessageChannel = new MessageChannel();
