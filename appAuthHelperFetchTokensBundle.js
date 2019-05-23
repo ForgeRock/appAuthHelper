@@ -119,7 +119,11 @@
                                 }
 
                                 if (currentResourceServer !== null) {
-                                    tokens[currentResourceServer] = token_endpoint_response[appAuthConfig.resourceServerAuthToken];
+                                    if (appAuthConfig.resourceServers[currentResourceServer] === "openid" && appAuthConfig.resourceServerAuthToken === "idToken") {
+                                        tokens[currentResourceServer] = token_endpoint_response.idToken;
+                                    } else {
+                                        tokens[currentResourceServer] = token_endpoint_response.accessToken;
+                                    }
                                 } else {
                                     tokens.accessToken = token_endpoint_response.accessToken;
                                 }
