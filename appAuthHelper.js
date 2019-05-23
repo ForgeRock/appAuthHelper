@@ -56,10 +56,7 @@
 
             this.appAuthConfig.resourceServers = config.resourceServers || {};
 
-            this.appAuthConfig.resourceServerAuthToken = config.resourceServerAuthToken || "accessToken";
-            if (!(config.resourceServerAuthToken in ["accessToken", "idToken"])) {
-                this.appAuthConfig.resourceServerAuthToken = "accessToken";
-            }
+            this.appAuthConfig.resourceServerAuthToken = (["accessToken", "idToken"].includes(config.resourceServerAuthToken)) ? config.resourceServerAuthToken : "accessToken";
 
             this.appAuthConfig.clientId = config.clientId;
             this.appAuthConfig.scopes = (this.appAuthConfig.oidc ? ["openid"] : [])
