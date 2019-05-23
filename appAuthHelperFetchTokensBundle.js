@@ -119,7 +119,7 @@
                                 }
 
                                 if (currentResourceServer !== null) {
-                                    tokens[currentResourceServer] = token_endpoint_response.accessToken;
+                                    tokens[currentResourceServer] = token_endpoint_response[appAuthConfig.resourceServerAuthToken];
                                 } else {
                                     tokens.accessToken = token_endpoint_response.accessToken;
                                 }

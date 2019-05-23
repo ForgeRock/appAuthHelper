@@ -17,6 +17,7 @@
          * @param {string} config.revocationEndpoint - Full URL to the OP revocation endpoint
          * @param {string} config.endSessionEndpoint - Full URL to the OP end session endpoint
          * @param {object} config.resourceServers - Map of resource server urls to the scopes which they require. Map values are space-delimited list of scopes requested by this RP for use with this RS
+         * @param {string} config.resourceServerAuthToken - [accessToken] - Indicate which token to use for the Authentication Bearer token. Options are 'accessToken' or 'idToken'. Defaults to accessToken
          * @param {function} config.interactionRequiredHandler - optional function to be called anytime interaction is required. When not provided, default behavior is to redirect the current window to the authorizationEndpoint
          * @param {function} config.tokensAvailableHandler - function to be called every time tokens are available - both initially and upon renewal
          * @param {number} config.renewCooldownPeriod [1] - Minimum time (in seconds) between requests to the authorizationEndpoint for token renewal attempts
@@ -54,6 +55,12 @@
 
 
             this.appAuthConfig.resourceServers = config.resourceServers || {};
+
+            this.appAuthConfig.resourceServerAuthToken = config.resourceServerAuthToken || "accessToken";
+            if (!(config.resourceServerAuthToken in ["accessToken", "idToken"])) {
+                this.appAuthConfig.resourceServerAuthToken = "accessToken";
+            }
+
             this.appAuthConfig.clientId = config.clientId;
             this.appAuthConfig.scopes = (this.appAuthConfig.oidc ? ["openid"] : [])
                 .concat(
