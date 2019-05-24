@@ -111,12 +111,12 @@ Once the library is loaded, you have to provide the environmental details along 
  - revocationEndpoint - Full URL to the OP revocation endpoint
  - endSessionEndpoint - Full URL to the OP end session endpoint
  - resourceServers - Optional map of resource server urls to the scopes which they require. Map values are space-delimited list of scopes requested by this RP for use with this RS. If not specified, no tokens will be automatically included in any network request.
- - tokensAvailableHandler - function to be called every time tokens are available - both initially and upon renewal
+ - tokensAvailableHandler - function to be called when tokens are first available
  - interactionRequiredHandler - optional function to be called when the user needs to interact with the OP; for example, to log in.
  - renewCooldownPeriod [default: 1] - Minimum time (in seconds) between requests to the authorizationEndpoint for token renewal attempts
  - oidc [default: true] - indicate whether or not you want to get back an id_token
  - redirectUri [default: appAuthHelperRedirect.html] - The redirect uri registered in the OP
- - serviceWorkerUri [default: appAuthServiceWorker.js] - Path to the service worker script. Make sure it is located low enough in your URL path so that its scope encapsilates all application code making network requests. See [Why is my service worker failing to register?](https://developer.mozilla.org/en-US/docs/Web/API/Service_Worker_API/Using_Service_Workers#Why_is_my_service_worker_failing_to_register) if you have questions.
+ - serviceWorkerUri [default: appAuthServiceWorker.js] - Path to the service worker script. Make sure it is located low enough in your URL path so that its scope encapsulates all application code making network requests. See [Why is my service worker failing to register?](https://developer.mozilla.org/en-US/docs/Web/API/Service_Worker_API/Using_Service_Workers#Why_is_my_service_worker_failing_to_register) if you have questions.
 
 You will need to make sure the redirect_uri used for this is registered with the OP. By default, you can use the included [appAuthHelperRedirect.html](./appAuthHelperRedirect.html) as the uri to register. Whatever you choose to use, be sure there is similar JavaScript code as is included within [appAuthHelperRedirect.html](./appAuthHelperRedirect.html).
 
