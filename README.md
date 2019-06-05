@@ -45,7 +45,7 @@ In the case when your request fails because the access token has expired, the se
 >     request a new access token and retry the protected resource
 >     request.
 
-Thanks to the service worker, you won't have to worry about implementing this retry logic yourself. Just make the calls to your APIs and let the service worker handle the tokens.
+Thanks to the service worker, you won't have to worry about implementing this retry logic yourself. Just make the calls to your APIs and let the service worker handle the tokens. For more details on how a service worker accomplishes this, review this article: [Service Workers as an Identity Proxy](./service_workers.md).
 
 ## Using this library
 
