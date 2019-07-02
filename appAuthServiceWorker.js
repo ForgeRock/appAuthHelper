@@ -40,6 +40,23 @@
         }
     };
 
+    self.getAuthHeaderDetails = function (headers) {
+        var authHeader = headers.get("www-authenticate");
+
+        if (authHeader && authHeader.match(/^Bearer /)) {
+            return authHeader.replace(/^Bearer /, "")
+                .match(/[^,=]+=".*?"/g)
+                .reduce(function (result, detail) {
+                    var pair = detail.split("=");
+                    result[pair[0]] = pair[1].replace(/"(.*)"/, "$1");
+                    return result;
+                }, {});
+        } else {
+            return {};
+        }
+    };
+
+
     self.addAccessTokenToRequest = function (request, resourceServer) {
         return new Promise((resolve, reject) => {
             var dbReq = indexedDB.open("appAuth",1);
@@ -101,7 +118,7 @@
                         .then((rsRequest) => fetch(rsRequest))
                         .then((resp) => {
                             // Watch for retry-able errors as described by https://tools.ietf.org/html/rfc6750#section-3
-                            if (!resp.ok && getAuthHeaderDetails(resp.headers)["error"] === "invalid_token") {
+                            if (!resp.ok && self.getAuthHeaderDetails(resp.headers)["error"] === "invalid_token") {
                                 let promise = self.waitForRenewedToken(resourceServer)
                                     .then(() => self.addAccessTokenToRequest(event.request, resourceServer))
                                     .then((freshRSRequest) => fetch(freshRSRequest));
@@ -121,21 +138,4 @@
         }
         return;
     });
-
-    function getAuthHeaderDetails(headers) {
-        var authHeader = headers.get("www-authenticate");
-
-        if (authHeader && authHeader.match(/^Bearer /)) {
-            return authHeader.replace(/^Bearer /, "")
-                .match(/[^,=]+=".*?"/g)
-                .reduce(function (result, detail) {
-                    var pair = detail.split("=");
-                    result[pair[0]] = pair[1].replace(/"(.*)"/, "$1");
-                    return result;
-                }, {});
-        } else {
-            return {};
-        }
-    }
-
 }());
