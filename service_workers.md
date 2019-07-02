@@ -58,7 +58,7 @@ Now this is simple! Note the complete lack of access token reference. The applic
 
 It is important to note that a service worker is only able to intercept network requests from JavaScript code that is hosted in the same origin as the service worker. This is actually a security benefit for the identity proxy use-case; there is no risk of a cross-site request forgery (CSRF) attack which exploits things like cookies always being present regardless of the request origin.
 
-In addition to handling token renewal, a server worker identity proxy can help you properly implement best practices for working with multiple resource servers. According to good advice found in the [OAuth 2.0 best current practice](https://tools.ietf.org/id/draft-ietf-oauth-security-topics-10.html#aud_restriction), you should use specific access tokens for each resource server your client requests. The goal is to limit the exposure of scopes, so that one potentially-misbehaving resource server could not take the token you give it and use it to make requests a different server. To accomplish this goal, your client will have to acquire multiple, appropriately-scoped access tokens and add them to the correct resource server requests. Selecting the right token to add to each of your requests is additional complexity - don't burden your application code with it! Let the identity proxy handle it for you.
+In addition to handling token renewal, a server worker identity proxy can help you properly implement best practices for working with multiple resource servers. According to good advice found in the [OAuth 2.0 best current practice](https://tools.ietf.org/id/draft-ietf-oauth-security-topics-12.html#aud_restriction), you should use specific access tokens for each resource server your client requests. The goal is to limit the exposure of scopes, so that one potentially-misbehaving resource server could not take the token you give it and use it to make requests a different server ([access token replay](https://tools.ietf.org/id/draft-ietf-oauth-security-topics-12.html#compromised-resource-server)). To accomplish this goal, your client can acquire multiple, limited-scope access tokens and add them to the correct resource server requests. Selecting the right token to add to each of your requests is additional complexity - don't burden your application code with it! Let the identity proxy handle it for you.
 
 Here is how the service worker can do all of those things for your application code. Below is an annotated copy of a [real implementation](https://www.npmjs.com/package/appauthhelper) of a service worker operating as an identity proxy. Read through the code and comments to learn how it works:
 
@@ -115,7 +115,7 @@ self.addEventListener("fetch", (event) => {
                             // the main execution context that a fresh token is needed.
                             // https://developer.mozilla.org/en-US/docs/Web/API/MessageChannel
                             self.messageChannel.postMessage({
-                                "message":"renewTokens",
+                                "message": "renewTokens",
                                 "resourceServer": resourceServer
                             });
                             return promise;
