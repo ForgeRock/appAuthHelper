@@ -58,9 +58,9 @@
             this.appAuthConfig.clientId = config.clientId;
             this.appAuthConfig.scopes = (this.appAuthConfig.oidc ? ["openid"] : [])
                 .concat(
-                    Object.keys(this.appAuthConfig.resourceServers).reduce((scopes, rs) =>
-                        scopes.concat(this.appAuthConfig.resourceServers[rs])
-                    , [])
+                    Object.keys(this.appAuthConfig.resourceServers).reduce((function (scopes, rs) {
+                        return scopes.concat(this.appAuthConfig.resourceServers[rs]);
+                    }).bind(this), [])
                 ).join(" ");
 
             this.appAuthConfig.endpoints = {
@@ -98,10 +98,10 @@
                         });
                     } else {
                         this.registerServiceWorker()
-                            .then(() => this.fetchTokensFromIndexedDB())
-                            .then((tokens) =>
-                                this.tokensAvailableHandler(this.appAuthConfig.oidc ? getIdTokenClaims(tokens.idToken) : {})
-                            );
+                            .then((function() { return this.fetchTokensFromIndexedDB(); }).bind(this))
+                            .then((function (tokens) {
+                                return this.tokensAvailableHandler(this.appAuthConfig.oidc ? getIdTokenClaims(tokens.idToken) : {});
+                            }).bind(this));
                     }
 
                     break;
@@ -179,16 +179,19 @@
                 ),
                 tokenHandler: tokenHandler
             };
-            this.checkForActiveAuthzRequest().then((hasActiveRequest) => {
+
+            // There normally shouldn't be an active authorization request going on when AppAuthHelper.init is
+            // called, but just in case this code is here to try to complete it, if possible.
+            this.checkForActiveAuthzRequest().then((function (hasActiveRequest) {
                 if (hasActiveRequest) {
                     iframe.setAttribute("src", this.appAuthConfig.redirectUri + window.location.hash.replace("#", "?"));
                 }
-            });
+            }).bind(this));
         },
         checkForActiveAuthzRequest: function () {
             return this.client.authorizationHandler
                 .storageBackend.getItem("appauth_current_authorization_request")
-                .then((handle) => !!handle);
+                .then(function (handle) { return !!handle; });
         },
         /**
          * Pass in a reference to an iframe element that you would like to use to handle the AS redirection,
@@ -208,28 +211,30 @@
          * tokens are still valid, however - you must be prepared to handle the case when they are not.
          */
         getTokens: function () {
-            this.fetchTokensFromIndexedDB().then((tokens) => {
+            this.fetchTokensFromIndexedDB().then((function (tokens) {
                 if (!tokens) {
                     // we don't have tokens yet, but we might be in the process of obtaining them
-                    this.checkForActiveAuthzRequest().then((hasActiveRequest) => {
+                    this.checkForActiveAuthzRequest().then((function (hasActiveRequest) {
                         if (!hasActiveRequest) {
                             // only start a new authorization request if there isn't already an active one
                             // attempt silent authorization
                             authnRequest(this.client, this.appAuthConfig, { "prompt": "none" });
                         }
-                    });
+                    }).bind(this));
                 } else {
                     this.registerServiceWorker()
-                        .then(() => this.tokensAvailableHandler(this.appAuthConfig.oidc ? getIdTokenClaims(tokens.idToken) : {}));
+                        .then((function () {
+                            this.tokensAvailableHandler(this.appAuthConfig.oidc ? getIdTokenClaims(tokens.idToken) : {});
+                        }).bind(this));
                 }
-            });
+            }).bind(this));
         },
         /**
          * logout() will revoke the access token, use the id_token to end the session on the OP, clear them from the
          * local session, and finally notify the SPA that they are gone.
          */
         logout: function () {
-            return this.fetchTokensFromIndexedDB().then((tokens) => {
+            return this.fetchTokensFromIndexedDB().then((function (tokens) {
                 if (!tokens) {
                     return;
                 }
@@ -244,49 +249,51 @@
                 return Promise.all(
                     revokeRequests.concat(
                         Object.keys(this.appAuthConfig.resourceServers)
-                            .filter((rs) => !!tokens[rs])
-                            .map((rs) =>
-                                new AppAuth.RevokeTokenRequest({
+                            .filter(function (rs) { return !!tokens[rs]; })
+                            .map((function (rs) {
+                                return new AppAuth.RevokeTokenRequest({
                                     client_id: this.appAuthConfig.clientId,
                                     token: tokens[rs]
-                                })
-                            )
-                    ).map((revokeRequest) =>
-                        this.client.tokenHandler.performRevokeTokenRequest(
+                                });
+                            }).bind(this))
+                    ).map((function (revokeRequest) {
+                        return this.client.tokenHandler.performRevokeTokenRequest(
                             this.client.configuration,
                             revokeRequest
-                        )
-                    )
-                ).then(() => {
+                        );
+                    }).bind(this))
+                ).then((function () {
                     if (this.appAuthConfig.oidc && tokens.idToken && this.client.configuration.endSessionEndpoint) {
                         return fetch(this.client.configuration.endSessionEndpoint + "?id_token_hint=" + tokens.idToken);
                     } else {
                         return;
                     }
-                }).then(() => new Promise((resolve, reject) => {
-                    var dbReq = indexedDB.open("appAuth",1);
-                    dbReq.onsuccess = () => {
-                        var objectStoreRequest = dbReq.result.transaction([this.appAuthConfig.clientId], "readwrite")
-                            .objectStore(this.appAuthConfig.clientId).clear();
-                        dbReq.result.close();
-                        objectStoreRequest.onsuccess = resolve;
-                    };
-                    dbReq.onerror = reject;
-                }));
-            });
+                }).bind(this)).then((function () {
+                    return new Promise((function (resolve, reject) {
+                        var dbReq = indexedDB.open("appAuth",1);
+                        dbReq.onsuccess = (function () {
+                            var objectStoreRequest = dbReq.result.transaction([this.appAuthConfig.clientId], "readwrite")
+                                .objectStore(this.appAuthConfig.clientId).clear();
+                            dbReq.result.close();
+                            objectStoreRequest.onsuccess = resolve;
+                        }).bind(this);
+                        dbReq.onerror = reject;
+                    }).bind(this));
+                }).bind(this));
+            }).bind(this));
         },
         whenRenewTokenFrameAvailable: function (resourceServer) {
-            return new Promise((resolve) => {
+            return new Promise((function (resolve) {
                 var currentResourceServer = sessionStorage.getItem("currentResourceServer");
                 if (currentResourceServer === null || resourceServer === currentResourceServer) {
                     resolve();
                 } else {
                     this.pendingResourceServerRenewals.push(resolve);
                 }
-            });
+            }).bind(this));
         },
         renewTokens: function (resourceServer) {
-            this.whenRenewTokenFrameAvailable(resourceServer).then(() => {
+            this.whenRenewTokenFrameAvailable(resourceServer).then((function () {
                 var timestamp = (new Date()).getTime();
                 sessionStorage.setItem("currentResourceServer", resourceServer);
                 if (!this.renewTokenTimestamp || (this.renewTokenTimestamp + (this.renewCooldownPeriod*1000)) < timestamp) {
@@ -300,66 +307,56 @@
                     rsConfig.scopes = this.appAuthConfig.resourceServers[resourceServer];
                     authnRequest(this.client, rsConfig, { "prompt": "none" });
                 }
-            });
+            }).bind(this));
         },
         fetchTokensFromIndexedDB: function () {
-            return new Promise((resolve, reject) => {
+            return new Promise((function (resolve, reject) {
                 var dbReq = indexedDB.open("appAuth",1);
-                dbReq.onupgradeneeded = () => {
-                    dbReq.result.createObjectStore(this.appAuthConfig.clientId);
-                };
-                dbReq.onsuccess = () => {
+                dbReq.onupgradeneeded = (function () {
+                    return dbReq.result.createObjectStore(this.appAuthConfig.clientId);
+                }).bind(this);
+                dbReq.onsuccess = (function () {
                     var objectStoreRequest = dbReq.result.transaction([this.appAuthConfig.clientId], "readonly")
                         .objectStore(this.appAuthConfig.clientId).get("tokens");
-                    objectStoreRequest.onsuccess = () => {
+                    objectStoreRequest.onsuccess = (function () {
                         var tokens = objectStoreRequest.result;
                         dbReq.result.close();
                         resolve(tokens);
-                    };
+                    }).bind(this);
                     objectStoreRequest.onerror = reject;
-                };
+                }).bind(this);
                 dbReq.onerror = reject;
-            });
+            }).bind(this));
         },
         receiveMessageFromServiceWorker: function (event) {
-            return new Promise((resolve) => {
+            return new Promise((function (resolve) {
                 if (event.data.message === "renewTokens") {
                     this.renewTokens(event.data.resourceServer);
                 }
                 resolve();
-            });
+            }).bind(this));
         },
         registerServiceWorker: function () {
-            return new Promise((resolve, reject) => {
+            return new Promise((function (resolve, reject) {
                 if ("serviceWorker" in navigator) {
                     navigator.serviceWorker.register(this.appAuthConfig.serviceWorkerUri)
-                        .then((reg) => {
-                            var sendConfigMessage = () => {
+                        .then((function (reg) {
+                            var sendConfigMessage = (function () {
                                 this.serviceWorkerMessageChannel = new MessageChannel();
-                                this.serviceWorkerMessageChannel.port1.onmessage = (event) =>
-                                    this.receiveMessageFromServiceWorker(event).then(() => resolve());
+                                this.serviceWorkerMessageChannel.port1.onmessage = (function (event) {
+                                    return this.receiveMessageFromServiceWorker(event).then(resolve);
+                                }).bind(this);
                                 reg.active.postMessage({
                                     "message": "configuration",
                                     "config": this.appAuthConfig
                                 }, [this.serviceWorkerMessageChannel.port2]);
-                            };
+                            }).bind(this);
 
-                            navigator.serviceWorker.ready.then(() =>
-                                sendConfigMessage()
-                            );
-                            /*
-                            if (reg.active) {
-                                sendConfigMessage();
-                            } else {
-                                navigator.serviceWorker.addEventListener("controllerchange", () => {
-                                    ;
-                                });
-                            }
-                            */
-                        })
+                            navigator.serviceWorker.ready.then(sendConfigMessage);
+                        }).bind(this))
                         .catch(reject);
                 }
-            });
+            }).bind(this));
         }
     };
 
