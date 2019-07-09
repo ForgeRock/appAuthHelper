@@ -181,17 +181,20 @@
             };
 
             // There normally shouldn't be an active authorization request going on when AppAuthHelper.init is
-            // called, but just in case this code is here to try to complete it, if possible.
-            this.checkForActiveAuthzRequest().then((function (hasActiveRequest) {
-                if (hasActiveRequest) {
-                    iframe.setAttribute("src", this.appAuthConfig.redirectUri + window.location.hash.replace("#", "?"));
+            // called. Just in case we somehow got here with a remnant left over, clean it out.
+            this.checkForActiveAuthzRequest().then((function (activeRequestHandle) {
+                if (activeRequestHandle) {
+                    return Promise.all([
+                        this.client.authorizationHandler.storageBackend.removeItem("appauth_current_authorization_request"),
+                        this.client.authorizationHandler.storageBackend.removeItem(activeRequestHandle + "_appauth_authorization_request"),
+                        this.client.authorizationHandler.storageBackend.removeItem(activeRequestHandle + "_appauth_authorization_service_configuration")
+                    ]);
                 }
             }).bind(this));
         },
         checkForActiveAuthzRequest: function () {
             return this.client.authorizationHandler
-                .storageBackend.getItem("appauth_current_authorization_request")
-                .then(function (handle) { return !!handle; });
+                .storageBackend.getItem("appauth_current_authorization_request");
         },
         /**
          * Pass in a reference to an iframe element that you would like to use to handle the AS redirection,

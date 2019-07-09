@@ -1,11 +1,11 @@
 (function () {
 
-    self.addEventListener("install", () => {
-        self.skipWaiting();
+    self.addEventListener("install", (event) => {
+        event.waitUntil(self.skipWaiting());
     });
 
-    self.addEventListener("activate", () => {
-        self.clients.claim();
+    self.addEventListener("activate", (event) => {
+        event.waitUntil(self.clients.claim());
     });
 
     self.addEventListener("message", (event) => {
@@ -13,9 +13,12 @@
             self.appAuthConfig = event.data.config;
             self.failedRequestQueue = self.failedRequestQueue || {};
             self.messageChannel = event.ports[0];
-            self.messageChannel.postMessage({
-                "message": "configured"
-            });
+
+            event.waitUntil(self.clients.claim().then(() =>
+                self.messageChannel.postMessage({
+                    "message": "configured"
+                })
+            ));
         } else if (event.data.message === "tokensRenewed") {
             self.retryFailedRequests(event.data.resourceServer);
         }
