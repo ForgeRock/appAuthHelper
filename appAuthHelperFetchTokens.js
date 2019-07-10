@@ -8,24 +8,37 @@
         appAuthClient,
         tokenHandler;
 
-    function fetchTokensFromIndexedDB() {
-        return new Promise((resolve, reject) => {
-            var dbReq = indexedDB.open("appAuth",1);
-            dbReq.onupgradeneeded = () => {
-                dbReq.result.createObjectStore(appAuthConfig.clientId);
-            };
-            dbReq.onsuccess = () => {
+    function fetchTokensFromIndexedDB () {
+        return new Promise((function (resolve, reject) {
+            var dbReq = indexedDB.open("appAuth"),
+                upgradeDb = (function () {
+                    return dbReq.result.createObjectStore(appAuthConfig.clientId);
+                }).bind(this),
+                onsuccess;
+            onsuccess = (function () {
+                if (!dbReq.result.objectStoreNames.contains(appAuthConfig.clientId)) {
+                    var version = dbReq.result.version;
+                    version++;
+                    dbReq.result.close();
+                    dbReq = indexedDB.open("appAuth", version);
+                    dbReq.onupgradeneeded = upgradeDb;
+                    dbReq.onsuccess = onsuccess;
+                    return;
+                }
                 var objectStoreRequest = dbReq.result.transaction([appAuthConfig.clientId], "readonly")
                     .objectStore(appAuthConfig.clientId).get("tokens");
-                objectStoreRequest.onsuccess = () => {
+                objectStoreRequest.onsuccess = (function () {
                     var tokens = objectStoreRequest.result;
                     dbReq.result.close();
                     resolve(tokens);
-                };
+                }).bind(this);
                 objectStoreRequest.onerror = reject;
-            };
+            }).bind(this);
+
+            dbReq.onupgradeneeded = upgradeDb;
+            dbReq.onsuccess = onsuccess;
             dbReq.onerror = reject;
-        });
+        }).bind(this));
     }
 
     if (typeof Promise === "undefined" || typeof fetch === "undefined") {
@@ -102,35 +115,29 @@
                 appAuthClient.tokenHandler
                     .performTokenRequest(appAuthClient.configuration, request)
                     .then(function (token_endpoint_response) {
-                        var dbReq = indexedDB.open("appAuth",1);
-                        dbReq.onupgradeneeded = function () {
-                            dbReq.result.createObjectStore(appAuthClient.clientId);
-                        };
-                        dbReq.onsuccess = function () {
-                            fetchTokensFromIndexedDB().then((tokens) => {
-                                var objectStoreRequest;
-                                if (!tokens) {
-                                    tokens = {};
-                                }
+                        fetchTokensFromIndexedDB().then((tokens) => {
+                            if (!tokens) {
+                                tokens = {};
+                            }
+                            if (token_endpoint_response.idToken) {
+                                tokens["idToken"] = token_endpoint_response.idToken;
+                            }
+                            if (currentResourceServer !== null) {
+                                tokens[currentResourceServer] = token_endpoint_response.accessToken;
+                            } else {
+                                tokens.accessToken = token_endpoint_response.accessToken;
+                            }
 
-                                if (token_endpoint_response.idToken) {
-                                    tokens["idToken"] = token_endpoint_response.idToken;
-                                }
-
-                                if (currentResourceServer !== null) {
-                                    tokens[currentResourceServer] = token_endpoint_response.accessToken;
-                                } else {
-                                    tokens.accessToken = token_endpoint_response.accessToken;
-                                }
-
-                                objectStoreRequest = dbReq.result.transaction([appAuthClient.clientId], "readwrite")
+                            var dbReq = indexedDB.open("appAuth");
+                            dbReq.onsuccess = function () {
+                                var objectStoreRequest = dbReq.result.transaction([appAuthClient.clientId], "readwrite")
                                     .objectStore(appAuthClient.clientId).put(tokens, "tokens");
                                 objectStoreRequest.onsuccess = function () {
                                     dbReq.result.close();
                                     parent.postMessage( "appAuth-tokensAvailable", document.location.origin);
                                 };
-                            });
-                        };
+                            };
+                        });
                     });
             } else if (appAuthClient.error) {
                 parent.postMessage("appAuth-interactionRequired", document.location.origin);

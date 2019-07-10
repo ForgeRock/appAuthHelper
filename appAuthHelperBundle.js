@@ -273,7 +273,7 @@
                     }
                 }).bind(this)).then((function () {
                     return new Promise((function (resolve, reject) {
-                        var dbReq = indexedDB.open("appAuth",1);
+                        var dbReq = indexedDB.open("appAuth");
                         dbReq.onsuccess = (function () {
                             var objectStoreRequest = dbReq.result.transaction([this.appAuthConfig.clientId], "readwrite")
                                 .objectStore(this.appAuthConfig.clientId).clear();
@@ -314,11 +314,21 @@
         },
         fetchTokensFromIndexedDB: function () {
             return new Promise((function (resolve, reject) {
-                var dbReq = indexedDB.open("appAuth",1);
-                dbReq.onupgradeneeded = (function () {
-                    return dbReq.result.createObjectStore(this.appAuthConfig.clientId);
-                }).bind(this);
-                dbReq.onsuccess = (function () {
+                var dbReq = indexedDB.open("appAuth"),
+                    upgradeDb = (function () {
+                        return dbReq.result.createObjectStore(this.appAuthConfig.clientId);
+                    }).bind(this),
+                    onsuccess;
+                onsuccess = (function () {
+                    if (!dbReq.result.objectStoreNames.contains(this.appAuthConfig.clientId)) {
+                        var version = dbReq.result.version;
+                        version++;
+                        dbReq.result.close();
+                        dbReq = indexedDB.open("appAuth", version);
+                        dbReq.onupgradeneeded = upgradeDb;
+                        dbReq.onsuccess = onsuccess;
+                        return;
+                    }
                     var objectStoreRequest = dbReq.result.transaction([this.appAuthConfig.clientId], "readonly")
                         .objectStore(this.appAuthConfig.clientId).get("tokens");
                     objectStoreRequest.onsuccess = (function () {
@@ -328,6 +338,9 @@
                     }).bind(this);
                     objectStoreRequest.onerror = reject;
                 }).bind(this);
+
+                dbReq.onupgradeneeded = upgradeDb;
+                dbReq.onsuccess = onsuccess;
                 dbReq.onerror = reject;
             }).bind(this));
         },
