@@ -60,50 +60,69 @@
     };
 
 
+    self.fetchTokensFromIndexedDB = function () {
+        return new Promise((function (resolve, reject) {
+            var dbReq = indexedDB.open("appAuth"),
+                upgradeDb = (function () {
+                    return dbReq.result.createObjectStore(this.appAuthConfig.clientId);
+                }).bind(this),
+                onsuccess;
+            onsuccess = (function () {
+                if (!dbReq.result.objectStoreNames.contains(this.appAuthConfig.clientId)) {
+                    var version = dbReq.result.version;
+                    version++;
+                    dbReq.result.close();
+                    dbReq = indexedDB.open("appAuth", version);
+                    dbReq.onupgradeneeded = upgradeDb;
+                    dbReq.onsuccess = onsuccess;
+                    return;
+                }
+                var objectStoreRequest = dbReq.result.transaction([this.appAuthConfig.clientId], "readonly")
+                    .objectStore(this.appAuthConfig.clientId).get("tokens");
+                objectStoreRequest.onsuccess = (function () {
+                    var tokens = objectStoreRequest.result;
+                    dbReq.result.close();
+                    resolve(tokens);
+                }).bind(this);
+                objectStoreRequest.onerror = reject;
+            }).bind(this);
+
+            dbReq.onupgradeneeded = upgradeDb;
+            dbReq.onsuccess = onsuccess;
+            dbReq.onerror = reject;
+        }).bind(this));
+    };
+
+
     self.addAccessTokenToRequest = function (request, resourceServer) {
         return new Promise((resolve, reject) => {
-            var dbReq = indexedDB.open("appAuth",1);
-            dbReq.onupgradeneeded = () => {
-                dbReq.result.createObjectStore(this.appAuthConfig.clientId);
-            };
-            dbReq.onerror = reject;
-            dbReq.onsuccess = () => {
-                var objectStoreRequest = dbReq.result.transaction([self.appAuthConfig.clientId], "readonly")
-                    .objectStore(self.appAuthConfig.clientId).get("tokens");
+            self.fetchTokensFromIndexedDB().then((tokens) => {
+                var rsHeaders =  new Headers(request.headers);
 
-                objectStoreRequest.onerror = reject;
+                if (!tokens[resourceServer]) {
+                    self.waitForRenewedToken(resourceServer).then(() => {
+                        self.addAccessTokenToRequest(request, resourceServer).then(resolve, reject);
+                    }, reject);
+                    self.messageChannel.postMessage({
+                        "message":"renewTokens",
+                        "resourceServer": resourceServer
+                    });
+                } else {
+                    rsHeaders.set("Authorization", `Bearer ${tokens[resourceServer]}`);
 
-                objectStoreRequest.onsuccess = () => {
-                    var tokens = objectStoreRequest.result,
-                        rsHeaders =  new Headers(request.headers);
-
-                    dbReq.result.close();
-
-                    if (!tokens[resourceServer]) {
-                        self.waitForRenewedToken(resourceServer).then(() => {
-                            self.addAccessTokenToRequest(request, resourceServer).then(resolve, reject);
-                        }, reject);
-                        self.messageChannel.postMessage({
-                            "message":"renewTokens",
-                            "resourceServer": resourceServer
-                        });
-                    } else {
-                        rsHeaders.set("Authorization", `Bearer ${tokens[resourceServer]}`);
-
-                        request.clone().text().then((bodyText) => resolve(new Request(request.url, {
-                            method: request.method,
-                            headers: rsHeaders,
-                            body: ["GET","HEAD"].indexOf(request.method.toUpperCase()) === -1 ? bodyText : undefined,
-                            mode: request.mode,
-                            credentials: request.credentials,
-                            cache: request.cache,
-                            redirect: request.redirect,
-                            referrer: request.referrer,
-                            integrity: request.integrity
-                        })));
-                    }
-                };
-            };
+                    request.clone().text().then((bodyText) => resolve(new Request(request.url, {
+                        method: request.method,
+                        headers: rsHeaders,
+                        body: ["GET","HEAD"].indexOf(request.method.toUpperCase()) === -1 ? bodyText : undefined,
+                        mode: request.mode,
+                        credentials: request.credentials,
+                        cache: request.cache,
+                        redirect: request.redirect,
+                        referrer: request.referrer,
+                        integrity: request.integrity
+                    })));
+                }
+            }, reject);
         });
     };
 
