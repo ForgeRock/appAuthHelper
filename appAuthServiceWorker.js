@@ -90,17 +90,17 @@
                     } else {
                         rsHeaders.set("Authorization", `Bearer ${tokens[resourceServer]}`);
 
-                        resolve(new Request(request.url, {
+                        request.clone().text().then((bodyText) => resolve(new Request(request.url, {
                             method: request.method,
                             headers: rsHeaders,
-                            body: request.body,
+                            body: ["GET","HEAD"].indexOf(request.method.toUpperCase()) === -1 ? bodyText : undefined,
                             mode: request.mode,
                             credentials: request.credentials,
                             cache: request.cache,
                             redirect: request.redirect,
                             referrer: request.referrer,
                             integrity: request.integrity
-                        }));
+                        })));
                     }
                 };
             };
