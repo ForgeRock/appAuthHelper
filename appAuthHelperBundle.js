@@ -76,10 +76,10 @@
                 }
                 switch (e.data) {
                 case "appAuth-tokensAvailable":
-                    var originalWindowHash = sessionStorage.getItem("originalWindowHash");
+                    var originalWindowHash = sessionStorage.getItem("originalWindowHash-" + this.appAuthConfig.clientId);
                     if (originalWindowHash !== null) {
                         window.location.hash = originalWindowHash;
-                        sessionStorage.removeItem("originalWindowHash");
+                        sessionStorage.removeItem("originalWindowHash-" + this.appAuthConfig.clientId);
                     }
 
                     // this should only be set as part of token renewal
@@ -113,7 +113,7 @@
 
                         // When interaction is required, the current hash state may be lost during redirection.
                         // Save it in sessionStorage so that it can be returned to upon successfully authenticating
-                        sessionStorage.setItem("originalWindowHash", window.location.hash);
+                        sessionStorage.setItem("originalWindowHash-" + this.appAuthConfig.clientId, window.location.hash);
 
                         // Use the default redirect request handler, because it will use the current window
                         // as the redirect target (rather than the hidden iframe).
