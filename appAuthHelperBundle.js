@@ -147,27 +147,7 @@
                 // Be sure jQuery is available globally if you need to support these.
                 tokenHandler = new AppAuth.BaseTokenRequestHandler();
             } else {
-                tokenHandler = new AppAuth.BaseTokenRequestHandler({
-                    // fetch-based alternative to built-in jquery implementation
-                    // TODO: replace with new AppAuth option
-                    xhr: function (settings) {
-                        return new Promise(function (resolve, reject) {
-                            fetch(settings.url, {
-                                method: settings.method,
-                                body: settings.data,
-                                mode: "cors",
-                                cache: "no-cache",
-                                headers: settings.headers
-                            }).then(function (response) {
-                                if (response.ok) {
-                                    response.json().then(resolve);
-                                } else {
-                                    reject(response.statusText);
-                                }
-                            }, reject);
-                        });
-                    }
-                });
+                tokenHandler = new AppAuth.BaseTokenRequestHandler(new AppAuth.FetchRequestor());
             }
 
             this.client = {
