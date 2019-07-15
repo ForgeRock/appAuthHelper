@@ -91,12 +91,9 @@
                             this.pendingResourceServerRenewals.shift()();
                         }
 
-                        navigator.serviceWorker.controller.postMessage({
-                            "message": "tokensRenewed",
-                            "resourceServer": currentResourceServer
-                        });
+                        this.identityProxy.tokensRenewed(currentResourceServer);
                     } else {
-                        this.registerServiceWorker()
+                        this.registerIdentityProxy()
                             .then((function() { return this.fetchTokensFromIndexedDB(); }).bind(this))
                             .then((function (tokens) {
                                 return this.tokensAvailableHandler(this.appAuthConfig.oidc ? getIdTokenClaims(tokens.idToken) : {});
@@ -200,11 +197,16 @@
                         if (!hasActiveRequest) {
                             // only start a new authorization request if there isn't already an active one
                             // attempt silent authorization
+
+                            this.client.authorizationHandler = new AppAuth.RedirectRequestHandler(
+                                // handle redirection within the hidden iframe
+                                void 0, void 0, document.getElementById("AppAuthHelper").contentWindow.location
+                            );
                             authnRequest(this.client, this.appAuthConfig, { "prompt": "none" });
                         }
                     }).bind(this));
                 } else {
-                    this.registerServiceWorker()
+                    this.registerIdentityProxy()
                         .then((function () {
                             this.tokensAvailableHandler(this.appAuthConfig.oidc ? getIdTokenClaims(tokens.idToken) : {});
                         }).bind(this));
@@ -267,7 +269,11 @@
         whenRenewTokenFrameAvailable: function (resourceServer) {
             return new Promise((function (resolve) {
                 var currentResourceServer = sessionStorage.getItem("currentResourceServer");
-                if (currentResourceServer === null || resourceServer === currentResourceServer) {
+                if (currentResourceServer === null) {
+                    sessionStorage.setItem("currentResourceServer", resourceServer);
+                    currentResourceServer = resourceServer;
+                }
+                if (resourceServer === currentResourceServer) {
                     resolve();
                 } else {
                     this.pendingResourceServerRenewals.push(resolve);
@@ -331,11 +337,21 @@
                 resolve();
             }).bind(this));
         },
-        registerServiceWorker: function () {
-            return new Promise((function (resolve, reject) {
+        registerIdentityProxy: function () {
+            return new Promise((function (resolve) {
                 if ("serviceWorker" in navigator) {
                     navigator.serviceWorker.register(this.appAuthConfig.serviceWorkerUri)
                         .then((function (reg) {
+
+                            this.identityProxy = {
+                                tokensRenewed: function (currentResourceServer) {
+                                    navigator.serviceWorker.controller.postMessage({
+                                        "message": "tokensRenewed",
+                                        "resourceServer": currentResourceServer
+                                    });
+                                }
+                            };
+
                             var sendConfigMessage = (function () {
                                 this.serviceWorkerMessageChannel = new MessageChannel();
                                 this.serviceWorkerMessageChannel.port1.onmessage = (function (event) {
@@ -349,9 +365,18 @@
 
                             navigator.serviceWorker.ready.then(sendConfigMessage);
                         }).bind(this))
-                        .catch(reject);
+                        .catch((function () {
+                            this.registerXHRProxy();
+                            resolve();
+                        }).bind(this));
+                } else {
+                    this.registerXHRProxy();
+                    resolve();
                 }
             }).bind(this));
+        },
+        registerXHRProxy: function () {
+            this.identityProxy = new (require("./IdentityProxyXHR"))(this.appAuthConfig, this.renewTokens.bind(this));
         }
     };
 
