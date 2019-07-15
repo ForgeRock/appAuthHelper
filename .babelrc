@@ -1,0 +1,23 @@
+{
+  "sourceType": "module",
+  "presets": [
+    "minify",
+      ["@babel/preset-env", {
+        "targets": {
+          "browsers": ["> 0.5%, not IE 11"]
+        }
+      }]
+  ],
+  "env": {
+    "compat": {
+      "presets": [
+        ["@babel/preset-env", {
+          "targets": {
+            "browsers": ["IE > 8"]
+          }
+        }]
+      ]
+    }
+  },
+  "comments": false
+}
