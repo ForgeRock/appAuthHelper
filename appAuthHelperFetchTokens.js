@@ -5,8 +5,7 @@
 
     var appAuthConfig = JSON.parse(sessionStorage.getItem("appAuthConfig")),
         currentResourceServer = sessionStorage.getItem("currentResourceServer"),
-        appAuthClient,
-        tokenHandler;
+        appAuthClient;
 
     function fetchTokensFromIndexedDB () {
         return new Promise((function (resolve, reject) {
@@ -41,14 +40,6 @@
         }).bind(this));
     }
 
-    if (typeof Promise === "undefined" || typeof fetch === "undefined") {
-        // Fall back to default, jQuery-based implementation for legacy browsers (IE).
-        // Be sure jQuery is available globally if you need to support these.
-        tokenHandler = new AppAuth.BaseTokenRequestHandler();
-    } else {
-        tokenHandler = new AppAuth.BaseTokenRequestHandler(new AppAuth.FetchRequestor());
-    }
-
     appAuthClient = {
         clientId: appAuthConfig.clientId,
         scopes: appAuthConfig.scopes,
@@ -56,7 +47,7 @@
         configuration: new AppAuth.AuthorizationServiceConfiguration(appAuthConfig.endpoints),
         notifier: new AppAuth.AuthorizationNotifier(),
         authorizationHandler: new AppAuth.RedirectRequestHandler(),
-        tokenHandler: tokenHandler
+        tokenHandler: new AppAuth.BaseTokenRequestHandler(new AppAuth.FetchRequestor())
     };
 
     appAuthClient.authorizationHandler.setAuthorizationNotifier(appAuthClient.notifier);
