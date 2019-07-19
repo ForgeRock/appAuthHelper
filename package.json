@@ -5,11 +5,11 @@
   "main": "appAuthHelper.js",
   "scripts": {
     "pretest": "eslint .",
-    "build-appAuthHelper": "browserify --s AppAuthHelper -o appAuthHelperBundle.js appAuthHelper$SUFFIX.js && babel --out-file appAuthHelperBundle.js appAuthHelperBundle.js",
-    "build-appAuthHelperFetchTokens": "browserify -o appAuthHelperFetchTokensBundle.js appAuthHelperFetchTokens$SUFFIX.js && babel --out-file appAuthHelperFetchTokensBundle.js appAuthHelperFetchTokensBundle.js",
-    "build-appAuthServiceWorker": "browserify -o appAuthServiceWorker.js appAuthServiceWorkerCore.js && babel --out-file appAuthServiceWorker.js appAuthServiceWorker.js",
+    "build-appAuthHelper": "browserify --s AppAuthHelper -o appAuthHelperBundle.js appAuthHelper$SUFFIX.js && babel --out-file appAuthHelperBundle.js appAuthHelperBundle.js && cp copyrights.js appAuthHelperBundleTmp.js && cat appAuthHelperBundle.js >> appAuthHelperBundleTmp.js && mv appAuthHelperBundleTmp.js appAuthHelperBundle.js",
+    "build-appAuthHelperFetchTokens": "browserify -o appAuthHelperFetchTokensBundle.js appAuthHelperFetchTokens$SUFFIX.js && babel --out-file appAuthHelperFetchTokensBundle.js appAuthHelperFetchTokensBundle.js && cp copyrights.js appAuthHelperFetchTokensBundleTmp.js && cat appAuthHelperFetchTokensBundle.js >> appAuthHelperFetchTokensBundleTmp.js && mv appAuthHelperFetchTokensBundleTmp.js appAuthHelperFetchTokensBundle.js",
+    "build-appAuthServiceWorker": "browserify -o appAuthServiceWorker.js appAuthServiceWorkerCore.js && babel --out-file appAuthServiceWorker.js appAuthServiceWorker.js && cp copyrights.js appAuthServiceWorkerTmp.js && cat appAuthServiceWorker.js >> appAuthServiceWorkerTmp.js && mv appAuthServiceWorkerTmp.js appAuthServiceWorker.js",
     "build": "npm run build-appAuthHelper && npm run build-appAuthHelperFetchTokens && npm run build-appAuthServiceWorker",
-    "build-compat": "SUFFIX=Compat npm run build"
+    "build-compat": "SUFFIX=Compat npm run build && cp compat-copyrights.js appAuthHelperBundleTmp.js && cat appAuthHelperBundle.js >> appAuthHelperBundleTmp.js && mv appAuthHelperBundleTmp.js appAuthHelperBundle.js && cp compat-copyrights.js appAuthHelperFetchTokensBundleTmp.js && cat appAuthHelperFetchTokensBundle.js >> appAuthHelperFetchTokensBundleTmp.js && mv appAuthHelperFetchTokensBundleTmp.js appAuthHelperFetchTokensBundle.js"
   },
   "repository": {
     "type": "git",
@@ -22,7 +22,6 @@
   "license": "Apache 2.0",
   "dependencies": {
     "@openid/appauth": "^1.2.0",
-    "browserify": "^16.2.3",
     "promise-polyfill": "8.1.3",
     "url-polyfill": "^1.1.7",
     "webcrypto-shim": "^0.1.4",
@@ -34,6 +33,8 @@
     "@babel/preset-env": "^7.3.4",
     "babel-preset-minify": "^0.5.0",
     "babelify": "^10.0.0",
+    "browserify": "^16.2.3",
+    "browserify-header": "^1.0.1",
     "eslint": "^5.9.0",
     "eslint-config-standard": "^12.0.0",
     "eslint-plugin-import": "^2.14.0",
