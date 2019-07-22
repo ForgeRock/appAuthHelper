@@ -32,11 +32,11 @@ Your SPA needs access tokens so that it can make requests to resource server end
 
 In order to obtain those tokens, the browser operates as an OIDC Relying Party (RP). It initiates a PKCE-based authorization code flow to the OpenID Provider (OP), the completion of which results in fresh tokens. The difficulty is that this flow normally involves a very noticeable and jarring redirection of the browser. Sometimes, that is unavoidable - when the user isn't currently logged into the OP, then they have to do so. But if the user has a valid session within the OP (and if they have already granted consent for the scopes this RP is asking for) then that obvious redirection shouldn't be necessary.
 
-To make the interaction between the RP and the OP more smooth, this library is designed to hide most of it from your application code. To do this, it uses a hidden iframe and a [service worker](https://developer.mozilla.org/en-US/docs/Web/API/Service_Worker_API). When the user has an active OP session, the hidden iframe will silently obtain the tokens - there is no obvious browser redirection involved. When your application code makes a request to a resource server, the service worker will intercept that request and add the appropriate access token to the request. This allows your SPA to worry much less about token management and instead focus on the business logic associated with the resource server APIs.
+To make the interaction between the RP and the OP more smooth, this library is designed to hide most of it from your application code. To do this, it uses a hidden iframe and an "[identity proxy](./service_workers.md)". When the user has an active OP session, the hidden iframe will silently obtain the tokens - there is no obvious browser redirection involved. When your application code makes a request to a resource server, the identity proxy will intercept that request and add the appropriate access token to the request. This allows your SPA to worry much less about token management and instead focus on the business logic associated with the resource server APIs.
 
-Each resource server your application wants to work with should use a unique access token. This is considered the best practice, as it limits the exposure of scopes to only those resource servers which ought to be using them. AppAuthHelper automates this best practice - for each resource server you declare, a unique access token (with the appropriate scopes) will be requested. The service worker will find the appropriate token for your request and automatically include it.
+Each resource server your application wants to work with should use a unique access token. This is considered the best practice, as it limits the exposure of scopes to only those resource servers which ought to be using them. AppAuthHelper automates this best practice - for each resource server you declare, a unique access token (with the appropriate scopes) will be requested. The identity proxy will find the appropriate token for your request and automatically include it.
 
-In the case when your request fails because the access token has expired, the service worker will automatically attempt to obtain a fresh access token and then retry the request with that fresh token. This can be detected when the resource server responds with a `www-authenticate` header along with an `error=invalid_token` detail. If this happens while the user still has a valid session within the OP, a new access token can be silently obtained using the iframe. This is essentially the process described in https://tools.ietf.org/html/rfc6750#section-3.1:
+In the case when your request fails because the access token has expired, the identity proxy will automatically attempt to obtain a fresh access token and then retry the request with that fresh token. This can be detected when the resource server responds with a `www-authenticate` header along with an `error=invalid_token` detail. If this happens while the user still has a valid session within the OP, a new access token can be silently obtained using the iframe. This is essentially the process described in https://tools.ietf.org/html/rfc6750#section-3.1:
 
 > invalid_token
 >     The access token provided is expired, revoked, malformed, or
@@ -45,7 +45,7 @@ In the case when your request fails because the access token has expired, the se
 >     request a new access token and retry the protected resource
 >     request.
 
-Thanks to the service worker, you won't have to worry about implementing this retry logic yourself. Just make the calls to your APIs and let the service worker handle the tokens. For more details on how a service worker accomplishes this, review this article: [Service Workers as an Identity Proxy](./service_workers.md).
+Thanks to the identity proxy, you won't have to worry about implementing this retry logic yourself. Just make the calls to your APIs and let the proxy handle the tokens. For more details on how the identity proxy accomplishes this, review this article: [Service Workers as an Identity Proxy](./service_workers.md).
 
 ## Using this library
 
@@ -142,7 +142,7 @@ Calling `AppAuthHelper.logout()` will trigger calls to both the access token rev
 
 ### Using Tokens
 
-Once `tokensAvailableHandler` has been called, your application can start using the tokens. If you are curious about them, you can find them within your browser's IndexedDB under "appAuth/clientId". You shouldn't need to develop any code that directly accesses them there, however; you should be able to rely on the service worker managing them for your requests. Instead just make simple calls to your resource server APIs, and trust that the Authorization header with the access token included as a bearer will be added. For example:
+Once `tokensAvailableHandler` has been called, your application can start using the tokens. If you are curious about them, you can find them within your browser's IndexedDB under "appAuth/clientId". You shouldn't need to develop any code that directly accesses them there, however; you should be able to rely on the identity proxy managing them for your requests. Instead just make simple calls to your resource server APIs, and trust that the Authorization header with the access token included as a bearer will be added. For example:
 
 ```
 fetch("https://login.example.com/oauth2/userinfo").then((resp) => resp.json())
@@ -170,6 +170,30 @@ You can also read the details about the authenticated user (called "claims") fro
     }
 
 Depending on the settings in your OP, there may be more claim values included. See the [OpenID Connect spec on claims](https://openid.net/specs/openid-connect-core-1_0.html#Claims) for more details.
+
+### Supporting Legacy Browsers
+
+If you want to support legacy browsers (such as IE 11) which do not support service workers (and other modern browser features like promises, fetch, crypto, etc...) you can do so with the "compat" build of AppAuthHelper. There is a cost associated with this support, in terms of download size. The "compat" build is about 60kb bigger than the "modern" build, due to the need to supply the various feature polyfills. However, if you decide that this support is required, it is an option.
+
+To include the "compat" version in your CommonJS environment, you simply need to refer to the correct module path, like so:
+
+```
+var AppAuthHelper = require('appauthhelper/appAuthHelperCompat');
+```
+
+If you are using AppAuthHelper as a global variable, you can get the "compat" build by using the npm script defined within package.json, like so:
+
+```
+npm run build-compat
+```
+
+This will produce versions of [appAuthHelperBundle.js](./appAuthHelperBundle.js) and [appAuthHelperFetchTokensBundle.js](./appAuthHelperFetchTokensBundle.js) that are usable in IE 11. For convenience, this is the version that is built by default and checked-into the source project. If you want the slimmed-down, modern build you simply need to use this command, instead:
+
+```
+npm run build
+```
+
+Note that there is no straight polyfill for service worker support. Instead, appAuthHelper will detect whether or not service workers are supported in the browser; if not, it will fall back to a alternative identity proxy implementation that is built on customizing the XMLHttpRequest object. The end result is the same behavior for your code, so you shouldn't need to worry about which implementation is ultimately used.
 
 ## Contributing
 
