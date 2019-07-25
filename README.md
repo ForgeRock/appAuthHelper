@@ -111,6 +111,7 @@ Once the library is loaded, you have to provide the environmental details along 
  - revocationEndpoint - Full URL to the OP revocation endpoint
  - endSessionEndpoint - Full URL to the OP end session endpoint
  - resourceServers - Optional map of resource server urls to the scopes which they require. Map values are space-delimited list of scopes requested by this RP for use with this RS. If not specified, no tokens will be automatically included in any network request.
+ - extras - Optional simple map of additional key=value pairs you would like to pass to the authorization endpoint.
  - tokensAvailableHandler - function to be called when tokens are first available
  - interactionRequiredHandler - optional function to be called when the user needs to interact with the OP; for example, to log in.
  - renewCooldownPeriod [default: 1] - Minimum time (in seconds) between requests to the authorizationEndpoint for token renewal attempts

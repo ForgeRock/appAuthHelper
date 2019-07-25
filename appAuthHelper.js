@@ -17,6 +17,7 @@
          * @param {string} config.revocationEndpoint - Full URL to the OP revocation endpoint
          * @param {string} config.endSessionEndpoint - Full URL to the OP end session endpoint
          * @param {object} config.resourceServers - Map of resource server urls to the scopes which they require. Map values are space-delimited list of scopes requested by this RP for use with this RS
+         * @param {object} config.extras -Additional parameters to include in the authorization request
          * @param {function} config.interactionRequiredHandler - optional function to be called anytime interaction is required. When not provided, default behavior is to redirect the current window to the authorizationEndpoint
          * @param {function} config.tokensAvailableHandler - function to be called every time tokens are available - both initially and upon renewal
          * @param {number} config.renewCooldownPeriod [1] - Minimum time (in seconds) between requests to the authorizationEndpoint for token renewal attempts
@@ -52,7 +53,7 @@
                 this.appAuthConfig.serviceWorkerUri = config.serviceWorkerUri;
             }
 
-
+            this.appAuthConfig.extras = config.extras || {};
             this.appAuthConfig.resourceServers = config.resourceServers || {};
             this.appAuthConfig.clientId = config.clientId;
             this.appAuthConfig.scopes = (this.appAuthConfig.oidc ? ["openid"] : [])
@@ -385,12 +386,19 @@
      * places in the code that require initiating an authorization request.
      */
     function authnRequest(client, config, extras) {
+        extras = extras || {};
         var request = new AppAuth.AuthorizationRequest({
             client_id: config.clientId,
             redirect_uri: config.redirectUri,
             scope: config.scopes,
             response_type: AppAuth.AuthorizationRequest.RESPONSE_TYPE_CODE,
-            extras: extras || {}
+            // Use the config.extras as the baseline, extend with provided extras
+            extras: Object.keys(extras)
+                        .concat(Object.keys(config.extras || {}))
+                        .reduce(function(result, key) {
+                            result[key] = extras[key] || config.extras[key];
+                            return result;
+                        }, {})
         });
 
         client.authorizationHandler.performAuthorizationRequest(
