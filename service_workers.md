@@ -6,7 +6,7 @@ The primary use-case described for Service Workers is to handle things such as o
 
 One exciting use of service workers doesn't have anything to do with caching - instead, it is relevant to applications which are operating as an OAuth 2.0 client. The main job of a OAuth 2.0 client is to make requests to OAuth 2.0 resource server endpoints with an [access token included as an authorization header](https://tools.ietf.org/html/rfc6750). This job can be done very easily with the help of a service worker "identity proxy".
 
-The act of adding a bearer token to a XHR request is more complicated than it seems at first. You might think it is as simple as this:
+The act of adding a bearer token to an XHR request is more complicated than it seems at first. You might think it is as simple as this:
 
 ```JavaScript
 var deferred = $.ajax({

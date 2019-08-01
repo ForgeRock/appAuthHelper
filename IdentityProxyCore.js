@@ -1,13 +1,23 @@
 (function () {
     "use strict";
 
-    module.exports = function IdentityProxyCore(appAuthConfig) {
-        this.appAuthConfig = appAuthConfig;
+    module.exports = function IdentityProxyCore(resourceServers, transmissionPort) {
+        this.resourceServers = resourceServers;
+        this.transmissionPort = transmissionPort;
         this.failedRequestQueue = this.failedRequestQueue || {};
         return this;
     };
 
     module.exports.prototype = {
+        renewTokens: function (resourceServer) {
+            this.transmissionPort.postMessage({
+                "message": "renewTokens",
+                "resourceServer": resourceServer
+            });
+        },
+        getResourceServerFromUrl: function (url) {
+            return this.resourceServers.filter((rs) => url.indexOf(rs) === 0)[0];
+        },
         waitForRenewedToken: function (resourceServer) {
             return new Promise((resolve, reject) => {
                 if (!this.failedRequestQueue[resourceServer]) {
@@ -25,85 +35,40 @@
                 }
             }
         },
-        getResourceServerFromUrl: function (url) {
-            if (typeof this.appAuthConfig.resourceServers === "object" &&
-                Object.keys(this.appAuthConfig.resourceServers).length) {
-
-                return Object.keys(this.appAuthConfig.resourceServers)
-                    .filter((rs) => url.indexOf(rs) === 0)[0];
-            } else {
-                return undefined;
-            }
-        },
-        fetchTokensFromIndexedDB: function () {
-            return new Promise((function (resolve, reject) {
-                var dbReq = indexedDB.open("appAuth"),
-                    upgradeDb = (function () {
-                        return dbReq.result.createObjectStore(this.appAuthConfig.clientId);
-                    }).bind(this),
-                    onsuccess;
-                onsuccess = (function () {
-                    if (!dbReq.result.objectStoreNames.contains(this.appAuthConfig.clientId)) {
-                        var version = dbReq.result.version;
-                        version++;
-                        dbReq.result.close();
-                        dbReq = indexedDB.open("appAuth", version);
-                        dbReq.onupgradeneeded = upgradeDb;
-                        dbReq.onsuccess = onsuccess;
-                        return;
-                    }
-                    var objectStoreRequest = dbReq.result.transaction([this.appAuthConfig.clientId], "readonly")
-                        .objectStore(this.appAuthConfig.clientId).get("tokens");
-                    objectStoreRequest.onsuccess = (function () {
-                        var tokens = objectStoreRequest.result;
-                        dbReq.result.close();
-                        resolve(tokens);
-                    }).bind(this);
-                    objectStoreRequest.onerror = reject;
-                }).bind(this);
-
-                dbReq.onupgradeneeded = upgradeDb;
-                dbReq.onsuccess = onsuccess;
-                dbReq.onerror = reject;
-            }).bind(this));
-        },
-        addAccessTokenToRequest: function (request, resourceServer) {
+        sendRequestMessage: function (serializedRequest) {
             return new Promise((resolve, reject) => {
-                this.fetchTokensFromIndexedDB().then((tokens) => {
-                    if (!tokens[resourceServer]) {
-                        this.waitForRenewedToken(resourceServer).then(() => {
-                            this.addAccessTokenToRequest(request, resourceServer).then(resolve, reject);
-                        }, reject);
-                        this.renewTokens(resourceServer);
+                var mc = new MessageChannel();
+                this.transmissionPort.postMessage({
+                    "message": "makeRSRequest",
+                    "request": serializedRequest
+                }, [mc.port2]);
+                mc.port1.onmessage = (event) => {
+                    if (event.data.response) {
+                        this.deserializeResponse(event.data.response).then(resolve);
                     } else {
-                        this.addAuthorizationRequestHeader(resolve, request, tokens[resourceServer]);
+                        reject(event.data.error);
                     }
-                }, reject);
+                };
             });
         },
         interceptRequest: function (request, resourceServer) {
-            return new Promise((resolve, reject) => {
-                this.addAccessTokenToRequest(request, resourceServer)
-                    .then((rsRequest) => this.makeRequest(rsRequest))
-                    .then((resp) => {
-                        // Watch for retry-able errors as described by https://tools.ietf.org/html/rfc6750#section-3
-                        if (this.getAuthHeaderDetails(resp)["error"] === "invalid_token") {
-                            let promise = this.waitForRenewedToken(resourceServer)
-                                .then(() => this.addAccessTokenToRequest(request, resourceServer))
-                                .then((freshRSRequest) => this.makeRequest(freshRSRequest));
+            return new Promise((resolve, reject) =>
+                this.serializeRequest(request).then((serializedRequest) =>
+                    this.sendRequestMessage(serializedRequest).then(resolve, (error) => {
+                        if (error === "invalid_token") {
+                            this.waitForRenewedToken(resourceServer)
+                                .then(() => this.sendRequestMessage(serializedRequest))
+                                .then(resolve, reject);
 
                             this.renewTokens(resourceServer);
-                            return promise;
                         } else {
-                            return resp;
+                            reject(error);
                         }
                     })
-                    .then(resolve, reject);
-            });
+                )
+            );
         },
-        renewTokens: function () {/* implementation needed */},
-        addAuthorizationRequestHeader: function () {/* implementation needed */},
-        getAuthHeaderDetails: function () {/* implementation needed*/},
-        makeRequest: function () {/* implementation needed*/}
+        serializeRequest: function () {/* implementation needed*/},
+        deserializeResponse: function () {/* implementation needed*/}
     };
 }());

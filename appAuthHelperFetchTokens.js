@@ -1,119 +1,98 @@
 (function () {
     "use strict";
 
-    var AppAuth = require("@openid/appauth");
+    // appAuth expects the details to be provided via hash, so copy them there
+    window.location.hash = window.location.search.substring(1); // removes the '?'
 
     var appAuthConfig = JSON.parse(sessionStorage.getItem("appAuthConfig")),
-        currentResourceServer = sessionStorage.getItem("currentResourceServer"),
-        appAuthClient;
+        TokenManager = require("./TokenManager"),
+        tokenManager;
 
-    function fetchTokensFromIndexedDB () {
-        return new Promise((function (resolve, reject) {
-            var dbReq = indexedDB.open("appAuth"),
-                upgradeDb = (function () {
-                    return dbReq.result.createObjectStore(appAuthConfig.clientId);
-                }).bind(this),
-                onsuccess;
-            onsuccess = (function () {
-                if (!dbReq.result.objectStoreNames.contains(appAuthConfig.clientId)) {
-                    var version = dbReq.result.version;
-                    version++;
-                    dbReq.result.close();
-                    dbReq = indexedDB.open("appAuth", version);
-                    dbReq.onupgradeneeded = upgradeDb;
-                    dbReq.onsuccess = onsuccess;
-                    return;
+    // don't trigger any default token management behavior unless
+    // we have some parameters to process
+    if (appAuthConfig && window.location.hash.replace('#','').length) {
+        tokenManager = new TokenManager(appAuthConfig);
+        tokenManager.getAvailableData()
+            .then((data) => {
+                // We succeeded, so we don't need to retain any hash details.
+                window.location.hash = "";
+                parent.postMessage({
+                    message: "appAuth-tokensAvailable",
+                    idTokenClaims: data.claims,
+                    resourceServer: data.resourceServer
+                }, TRUSTED_ORIGIN);
+            },
+            (error) => {
+                if (error === "interaction_required") {
+                    // When interaction is required, we need to report that to
+                    // the parent frame along with the url that the user needs to
+                    // visit.
+                    tokenManager.getAuthzURL().then((url) =>
+                        parent.postMessage({
+                            message: "appAuth-interactionRequired",
+                            authorizationUrl: url
+                        }, TRUSTED_ORIGIN)
+                    );
                 }
-                var objectStoreRequest = dbReq.result.transaction([appAuthConfig.clientId], "readonly")
-                    .objectStore(appAuthConfig.clientId).get("tokens");
-                objectStoreRequest.onsuccess = (function () {
-                    var tokens = objectStoreRequest.result;
-                    dbReq.result.close();
-                    resolve(tokens);
-                }).bind(this);
-                objectStoreRequest.onerror = reject;
-            }).bind(this);
-
-            dbReq.onupgradeneeded = upgradeDb;
-            dbReq.onsuccess = onsuccess;
-            dbReq.onerror = reject;
-        }).bind(this));
+            })
+            .finally(() => {
+                // if we are running in the context of a full window (rather than an iframe)
+                if (parent === window) {
+                    setTimeout(() => {
+                        var appLocation = document.createElement("a");
+                        appLocation.href = appAuthConfig.appLocation || ".";
+                        window.location.assign(appLocation.href);
+                    }, 0);
+                }
+            });
     }
 
-    appAuthClient = {
-        clientId: appAuthConfig.clientId,
-        scopes: appAuthConfig.scopes,
-        redirectUri: appAuthConfig.redirectUri,
-        configuration: new AppAuth.AuthorizationServiceConfiguration(appAuthConfig.endpoints),
-        notifier: new AppAuth.AuthorizationNotifier(),
-        authorizationHandler: new AppAuth.RedirectRequestHandler(),
-        tokenHandler: new AppAuth.BaseTokenRequestHandler(new AppAuth.FetchRequestor())
-    };
-
-    appAuthClient.authorizationHandler.setAuthorizationNotifier(appAuthClient.notifier);
-
-    /**
-     * This is invoked when the browser has returned from the OP with either a code or an error.
-     */
-    appAuthClient.notifier.setAuthorizationListener(function (request, response, error) {
-        if (response) {
-            appAuthClient.request = request;
-            appAuthClient.response = response;
-            appAuthClient.code = response.code;
+    // will receive these messages when running in an iframe
+    window.addEventListener("message", function (e) {
+        if (e.origin !== TRUSTED_ORIGIN) {
+            return;
         }
-        if (error) {
-            appAuthClient.error = error;
+
+        tokenManager = tokenManager || new TokenManager(e.data.config);
+        switch (e.data.message) {
+        case "appAuth-config":
+            sessionStorage.setItem("appAuthConfig", JSON.stringify(e.data.config));
+            // There normally shouldn't be an active authorization request going on when the
+            // config is first passed in here. Just in case we somehow got here with a
+            // remnant left over, clean it out.
+            tokenManager.clearActiveAuthzRequests().then(() =>
+                e.ports[0].postMessage("configured")
+            );
+            break;
+        case "appAuth-logout":
+            tokenManager.logout().then(() => {
+                parent.postMessage({
+                    message: "appAuth-logoutComplete"
+                }, TRUSTED_ORIGIN);
+            });
+            break;
+        case "appAuth-getFreshAccessToken":
+            tokenManager.silentAuthzRequest(e.data.resourceServer);
+            break;
+        case "appAuth-getAvailableData":
+            tokenManager.getAvailableData()
+                .then((data) => {
+                    parent.postMessage({
+                        message: "appAuth-tokensAvailable",
+                        idTokenClaims: data.claims
+                    }, TRUSTED_ORIGIN);
+                }, (error) => {
+                    tokenManager.silentAuthzRequest();
+                });
+            break;
+        case "makeRSRequest":
+            tokenManager.makeRSRequest(e.data.request)
+                .then(
+                    (response) => e.ports[0].postMessage({response}),
+                    (error) => e.ports[0].postMessage({error})
+                );
+            break;
         }
     });
 
-    appAuthClient.authorizationHandler.completeAuthorizationRequestIfPossible()
-        .then(function () {
-            var request;
-            // The case when the user has successfully returned from the authorization request
-            if (appAuthClient.code) {
-                var extras = {};
-                // PKCE support
-                if (appAuthClient.request && appAuthClient.request.internal) {
-                    extras["code_verifier"] = appAuthClient.request.internal["code_verifier"];
-                }
-                request = new AppAuth.TokenRequest({
-                    client_id: appAuthClient.clientId,
-                    redirect_uri: appAuthClient.redirectUri,
-                    grant_type: AppAuth.GRANT_TYPE_AUTHORIZATION_CODE,
-                    code: appAuthClient.code,
-                    refresh_token: undefined,
-                    extras: extras
-                });
-                appAuthClient.tokenHandler
-                    .performTokenRequest(appAuthClient.configuration, request)
-                    .then(function (token_endpoint_response) {
-                        fetchTokensFromIndexedDB().then((tokens) => {
-                            if (!tokens) {
-                                tokens = {};
-                            }
-                            if (token_endpoint_response.idToken) {
-                                tokens["idToken"] = token_endpoint_response.idToken;
-                            }
-                            if (currentResourceServer !== null) {
-                                tokens[currentResourceServer] = token_endpoint_response.accessToken;
-                            } else {
-                                tokens.accessToken = token_endpoint_response.accessToken;
-                            }
-
-                            var dbReq = indexedDB.open("appAuth");
-                            dbReq.onsuccess = function () {
-                                var objectStoreRequest = dbReq.result.transaction([appAuthClient.clientId], "readwrite")
-                                    .objectStore(appAuthClient.clientId).put(tokens, "tokens");
-                                objectStoreRequest.onsuccess = function () {
-                                    dbReq.result.close();
-                                    parent.postMessage( "appAuth-tokensAvailable", document.location.origin);
-                                };
-                            };
-                        });
-                    });
-            } else if (appAuthClient.error) {
-                parent.postMessage("appAuth-interactionRequired", document.location.origin);
-            }
-
-        });
 }());

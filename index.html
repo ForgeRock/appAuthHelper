@@ -20,7 +20,7 @@
 
 <body>
     <div id="userDetails"></div>
-    <a href='#' onclick='AppAuthHelper.logout().then(function () { location.reload(); })'>Logout</a>
+    <a href='#' onclick='AppAuthHelper.logout().then(function () { location.reload(); }); return false;'>Logout</a>
 </body>
 
 <script src="appAuthHelperBundle.js"></script>
@@ -32,6 +32,11 @@
         tokenEndpoint: "https://default.iam.example.com/am/oauth2/access_token",
         revocationEndpoint: "https://default.iam.example.com/am/oauth2/token/revoke",
         endSessionEndpoint: "https://default.iam.example.com/am/oauth2/connect/endSession",
+
+        // Use a redirectUri hosted on a different origin to get XSS protection for your access tokens
+        // Be sure to adjust the TRUSTED_ORIGIN value within appAuthHelperRedirect.html to point back to this origin
+        //redirectUri: "http://appauthclient.example.com:8888/appAuthHelperRedirect.html",
+
         resourceServers: {
             "https://default.iam.example.com/am/oauth2/userinfo": "profile",
             "https://default.iam.example.com/openidm": "openid"
@@ -54,19 +59,22 @@
 
             Promise.all([
                 // Appropriate access tokens will be automatically included in these requests
-                fetch("https://default.iam.example.com/am/oauth2/userinfo").then(function(resp) { return resp.json(); }),
-                fetch("https://default.iam.example.com/openidm/info/login").then(function(resp) { return resp.json(); })
-            ]).then(function (responses) {
+                fetch("https://default.iam.example.com/am/oauth2/userinfo").then((resp) => resp.json()),
+                fetch("https://default.iam.example.com/openidm/info/login").then((resp) => resp.json())
+            ]).then((responses) => {
                 document.getElementById('userDetails').innerText = JSON.stringify({
                     "userinfo": responses[0],
                     "info/login": responses[1]
                 }, null, 4);
             });
+
+
         }
+    }).then(function () {
+        // In this application, we want tokens immediately. If you want to support
+        // any anonymous interaction, this should be delayed.
+        AppAuthHelper.getTokens();
     });
-    // In this application, we want tokens immediately. If you want to support
-    // any anonymous interaction, this should be delayed.
-    AppAuthHelper.getTokens();
 }());
 </script>
 </html>

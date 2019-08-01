@@ -13,7 +13,10 @@
 
     self.addEventListener("message", (event) => {
         if (event.data.message === "configuration") {
-            self.identityProxy = new IdentityProxyServiceWorker(event.data.config, event.ports[0]);
+            self.identityProxy = new IdentityProxyServiceWorker(
+                event.data.resourceServers,
+                event.ports[0]
+            );
             event.waitUntil(self.clients.claim().then(() =>
                 event.ports[0].postMessage({
                     "message": "configured"
@@ -27,7 +30,7 @@
     self.addEventListener("fetch", (event) => {
         if (self.identityProxy) {
             var resourceServer = self.identityProxy.getResourceServerFromUrl(event.request.url);
-            if (resourceServer) {
+            if (resourceServer && !event.request.headers.get("authorization")) {
                 event.respondWith(self.identityProxy.interceptRequest(event.request, resourceServer));
             }
         }
