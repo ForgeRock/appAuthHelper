@@ -1,8 +1,6 @@
 (function () {
     "use strict";
 
-    var AppAuth = require("@openid/appauth");
-
     /**
      * Module used to easily setup AppAuthJS in a way that allows it to transparently obtain and renew access tokens
      * @module AppAuthHelper
@@ -25,33 +23,37 @@
          * @param {string} config.serviceWorkerUri [appAuthServiceWorker.js] - The path to the service worker script
          */
         init: function (config) {
-            var calculatedUriLink,
-                iframe = document.createElement("iframe");
+            var calculatedRedirectUriLink = document.createElement("a"),
+                calculatedSWUriLink = document.createElement("a"),
+                promise;
+
+            sessionStorage.removeItem("currentResourceServer");
+            this.appAuthIframe = document.createElement("iframe");
+            this.rsIframe = document.createElement("iframe");
 
             this.renewCooldownPeriod = config.renewCooldownPeriod || 1;
-            this.appAuthConfig = {};
+            this.appAuthConfig = {
+                appLocation: document.location.href
+            };
             this.tokensAvailableHandler = config.tokensAvailableHandler;
             this.interactionRequiredHandler = config.interactionRequiredHandler;
             this.appAuthConfig.oidc = typeof config.oidc !== "undefined" ? !!config.oidc : true;
             this.pendingResourceServerRenewals = [];
 
             if (!config.redirectUri) {
-                calculatedUriLink = document.createElement("a");
-                calculatedUriLink.href = "appAuthHelperRedirect.html";
-
-                this.appAuthConfig.redirectUri = calculatedUriLink.href;
+                calculatedRedirectUriLink.href = "appAuthHelperRedirect.html";
             } else {
-                this.appAuthConfig.redirectUri = config.redirectUri;
+                calculatedRedirectUriLink.href = config.redirectUri;
             }
+            this.appAuthConfig.redirectUri = calculatedRedirectUriLink.href;
+            this.iframeOrigin = (new URL(this.appAuthConfig.redirectUri)).origin;
 
             if (!config.serviceWorkerUri) {
-                calculatedUriLink = document.createElement("a");
-                calculatedUriLink.href = "appAuthServiceWorker.js";
-
-                this.appAuthConfig.serviceWorkerUri = calculatedUriLink.href;
+                calculatedSWUriLink.href = "appAuthServiceWorker.js";
             } else {
-                this.appAuthConfig.serviceWorkerUri = config.serviceWorkerUri;
+                calculatedSWUriLink.href = config.serviceWorkerUri;
             }
+            this.appAuthConfig.serviceWorkerUri = calculatedSWUriLink.href;
 
             this.appAuthConfig.extras = config.extras || {};
             this.appAuthConfig.resourceServers = config.resourceServers || {};
@@ -71,10 +73,10 @@
             };
 
             window.addEventListener("message", (function (e) {
-                if (e.origin !== document.location.origin) {
+                if (e.origin !== this.iframeOrigin) {
                     return;
                 }
-                switch (e.data) {
+                switch (e.data.message) {
                 case "appAuth-tokensAvailable":
                     var originalWindowHash = sessionStorage.getItem("originalWindowHash-" + this.appAuthConfig.clientId);
                     if (originalWindowHash !== null) {
@@ -83,8 +85,7 @@
                     }
 
                     // this should only be set as part of token renewal
-                    if (sessionStorage.getItem("currentResourceServer")) {
-                        var currentResourceServer = sessionStorage.getItem("currentResourceServer");
+                    if (e.data.resourceServer) {
                         sessionStorage.removeItem("currentResourceServer");
                         this.renewTokenTimestamp = false;
 
@@ -92,91 +93,98 @@
                             this.pendingResourceServerRenewals.shift()();
                         }
 
-                        this.identityProxy.tokensRenewed(currentResourceServer);
+                        this.identityProxy.tokensRenewed(e.data.resourceServer);
                     } else {
                         this.registerIdentityProxy()
-                            .then((function() { return this.fetchTokensFromIndexedDB(); }).bind(this))
-                            .then((function (tokens) {
-                                return this.tokensAvailableHandler(this.appAuthConfig.oidc ? getIdTokenClaims(tokens.idToken) : {});
+                            .then((function () {
+                                return this.tokensAvailableHandler(e.data.idTokenClaims);
                             }).bind(this));
                     }
 
                     break;
                 case "appAuth-interactionRequired":
                     if (this.interactionRequiredHandler) {
-                        this.interactionRequiredHandler();
+                        this.interactionRequiredHandler(e.data.authorizationUrl);
                     } else {
                         // Default behavior for when interaction is required is to redirect to the OP for login.
 
-                        // When interaction is required, the current hash state may be lost during redirection.
-                        // Save it in sessionStorage so that it can be returned to upon successfully authenticating
-                        sessionStorage.setItem("originalWindowHash-" + this.appAuthConfig.clientId, window.location.hash);
-
-                        // Use the default redirect request handler, because it will use the current window
-                        // as the redirect target (rather than the hidden iframe).
-                        this.client.authorizationHandler = (new AppAuth.RedirectRequestHandler());
-                        authnRequest(this.client, this.appAuthConfig);
+                        if (window.location.hash.replace('#','').length) {
+                            // When interaction is required, the current hash state may be lost during redirection.
+                            // Save it in sessionStorage so that it can be returned to upon successfully authenticating
+                            sessionStorage.setItem("originalWindowHash-" + this.appAuthConfig.clientId, window.location.hash);
+                        }
+                        window.location.href = e.data.authorizationUrl;
                     }
 
+                    break;
+                case "appAuth-logoutComplete":
+                    this.logoutComplete();
                     break;
                 }
             }).bind(this), false);
 
-
             /*
-             * Attach a hidden iframe onto the main document body that is used to handle
-             * interaction with the token endpoint. This will allow us to perform
-             * background access token renewal, in addition to handling the main PKCE-based
-             * authorization code flow performed in the foreground.
-             *
-             * sessionStorage is used to pass the configuration down to the iframe
+             * Attach two hidden iframes onto the main document body. One is used to handle
+             * background token acquisition and renewal, using the AppAuth JS library. The other
+             * is used to make token-bearing requests to resource server endpoints, with the help
+             * of the Identity Proxy.
              */
-            sessionStorage.setItem("appAuthConfig", JSON.stringify(this.appAuthConfig));
 
-            iframe.setAttribute("src", "about:blank");
-            iframe.setAttribute("id", "AppAuthHelper");
-            iframe.setAttribute("style", "display:none");
-            document.getElementsByTagName("body")[0].appendChild(iframe);
+            this.appAuthIframe.setAttribute("src", this.appAuthConfig.redirectUri);
+            this.appAuthIframe.setAttribute("id", "AppAuthIframe");
+            this.appAuthIframe.setAttribute("style", "display:none");
 
-            var tokenHandler;
-            if (typeof Promise === "undefined" || typeof fetch === "undefined") {
-                // Fall back to default, jQuery-based implementation for legacy browsers (IE).
-                // Be sure jQuery is available globally if you need to support these.
-                tokenHandler = new AppAuth.BaseTokenRequestHandler();
-            } else {
-                tokenHandler = new AppAuth.BaseTokenRequestHandler(new AppAuth.FetchRequestor());
-            }
+            this.rsIframe.setAttribute("src", this.appAuthConfig.redirectUri);
+            this.rsIframe.setAttribute("id", "rsIframe");
+            this.rsIframe.setAttribute("style", "display:none");
 
-            this.client = {
-                configuration: new AppAuth.AuthorizationServiceConfiguration(this.appAuthConfig.endpoints),
-                notifier: new AppAuth.AuthorizationNotifier(),
-                authorizationHandler: new AppAuth.RedirectRequestHandler(
-                    // handle redirection within the hidden iframe
-                    void 0, void 0, iframe.contentWindow.location
-                ),
-                tokenHandler: tokenHandler
-            };
+            this.identityProxyMessageChannel = new MessageChannel();
+            this.identityProxyMessageChannel.port1.onmessage = this.handleIdentityProxyMessage.bind(this);
 
-            // There normally shouldn't be an active authorization request going on when AppAuthHelper.init is
-            // called. Just in case we somehow got here with a remnant left over, clean it out.
-            this.checkForActiveAuthzRequest().then((function (activeRequestHandle) {
-                if (activeRequestHandle) {
-                    return Promise.all([
-                        this.client.authorizationHandler.storageBackend.removeItem("appauth_current_authorization_request"),
-                        this.client.authorizationHandler.storageBackend.removeItem(activeRequestHandle + "_appauth_authorization_request"),
-                        this.client.authorizationHandler.storageBackend.removeItem(activeRequestHandle + "_appauth_authorization_service_configuration")
-                    ]);
-                }
-            }).bind(this));
+            promise = Promise.all([
+                new Promise((function (resolve) {
+                    this.rsIframe.onload = (function () {
+                        this.rsIframe.onload = null;
+                        resolve();
+                    }).bind(this);
+                }).bind(this)),
+                new Promise((function (resolve) {
+                    this.appAuthIframe.onload = (function () {
+                        this.appAuthIframe.onload = null;
+                        var mc = new MessageChannel();
+                        mc.port1.onmessage = resolve;
+                        this.appAuthIframe.contentWindow.postMessage({
+                            message: "appAuth-config",
+                            config: this.appAuthConfig
+                        }, this.iframeOrigin, [mc.port2]);
+                    }).bind(this);
+                }).bind(this))
+            ]);
+
+            document.getElementsByTagName("body")[0].appendChild(this.appAuthIframe);
+            document.getElementsByTagName("body")[0].appendChild(this.rsIframe);
+            return promise;
         },
-        checkForActiveAuthzRequest: function () {
-            return this.client.authorizationHandler
-                .storageBackend.getItem("appauth_current_authorization_request");
+        handleIdentityProxyMessage: function (event) {
+            switch (event.data.message) {
+                case "makeRSRequest":
+                    this.rsIframe.contentWindow.postMessage({
+                            request: event.data.request,
+                            message: event.data.message,
+                            config: this.appAuthConfig
+                        },
+                        this.iframeOrigin,
+                        event.ports
+                    );
+                    break;
+                case "renewTokens":
+                    this.renewTokens(event.data.resourceServer);
+                    break;
+            }
         },
         /**
          * Pass in a reference to an iframe element that you would like to use to handle the AS redirection,
          * rather than relying on a full-page redirection.
-         */
         iframeRedirect: function (iframe) {
             // Use a provided iframe element to handle the authentication request.
             this.client.authorizationHandler = (new AppAuth.RedirectRequestHandler(
@@ -185,86 +193,30 @@
             ));
             authnRequest(this.client, this.appAuthConfig);
         },
+        */
+
         /**
          * Begins process which will either get the tokens that are in session storage or will attempt to
          * get them from the OP. In either case, the tokensAvailableHandler will be called. No guarentee that the
          * tokens are still valid, however - you must be prepared to handle the case when they are not.
          */
         getTokens: function () {
-            this.fetchTokensFromIndexedDB().then((function (tokens) {
-                if (!tokens) {
-                    // we don't have tokens yet, but we might be in the process of obtaining them
-                    this.checkForActiveAuthzRequest().then((function (hasActiveRequest) {
-                        if (!hasActiveRequest) {
-                            // only start a new authorization request if there isn't already an active one
-                            // attempt silent authorization
-
-                            this.client.authorizationHandler = new AppAuth.RedirectRequestHandler(
-                                // handle redirection within the hidden iframe
-                                void 0, void 0, document.getElementById("AppAuthHelper").contentWindow.location
-                            );
-                            authnRequest(this.client, this.appAuthConfig, { "prompt": "none" });
-                        }
-                    }).bind(this));
-                } else {
-                    this.registerIdentityProxy()
-                        .then((function () {
-                            this.tokensAvailableHandler(this.appAuthConfig.oidc ? getIdTokenClaims(tokens.idToken) : {});
-                        }).bind(this));
-                }
-            }).bind(this));
+            this.appAuthIframe.contentWindow.postMessage({
+                message: "appAuth-getAvailableData",
+                config: this.appAuthConfig
+            }, this.iframeOrigin);
         },
         /**
          * logout() will revoke the access token, use the id_token to end the session on the OP, clear them from the
          * local session, and finally notify the SPA that they are gone.
          */
         logout: function () {
-            return this.fetchTokensFromIndexedDB().then((function (tokens) {
-                if (!tokens) {
-                    return;
-                }
-                var revokeRequests = [];
-                if (tokens.accessToken) {
-                    revokeRequests.push(new AppAuth.RevokeTokenRequest({
-                        client_id: this.appAuthConfig.clientId,
-                        token: tokens.accessToken
-                    }));
-                }
-
-                return Promise.all(
-                    revokeRequests.concat(
-                        Object.keys(this.appAuthConfig.resourceServers)
-                            .filter(function (rs) { return !!tokens[rs]; })
-                            .map((function (rs) {
-                                return new AppAuth.RevokeTokenRequest({
-                                    client_id: this.appAuthConfig.clientId,
-                                    token: tokens[rs]
-                                });
-                            }).bind(this))
-                    ).map((function (revokeRequest) {
-                        return this.client.tokenHandler.performRevokeTokenRequest(
-                            this.client.configuration,
-                            revokeRequest
-                        );
-                    }).bind(this))
-                ).then((function () {
-                    if (this.appAuthConfig.oidc && tokens.idToken && this.client.configuration.endSessionEndpoint) {
-                        return fetch(this.client.configuration.endSessionEndpoint + "?id_token_hint=" + tokens.idToken);
-                    } else {
-                        return;
-                    }
-                }).bind(this)).then((function () {
-                    return new Promise((function (resolve, reject) {
-                        var dbReq = indexedDB.open("appAuth");
-                        dbReq.onsuccess = (function () {
-                            var objectStoreRequest = dbReq.result.transaction([this.appAuthConfig.clientId], "readwrite")
-                                .objectStore(this.appAuthConfig.clientId).clear();
-                            dbReq.result.close();
-                            objectStoreRequest.onsuccess = resolve;
-                        }).bind(this);
-                        dbReq.onerror = reject;
-                    }).bind(this));
-                }).bind(this));
+            return new Promise((function (resolve) {
+                this.logoutComplete = resolve;
+                this.appAuthIframe.contentWindow.postMessage({
+                    message: "appAuth-logout",
+                    config: this.appAuthConfig
+                }, this.iframeOrigin);
             }).bind(this));
         },
         whenRenewTokenFrameAvailable: function (resourceServer) {
@@ -287,55 +239,13 @@
                 sessionStorage.setItem("currentResourceServer", resourceServer);
                 if (!this.renewTokenTimestamp || (this.renewTokenTimestamp + (this.renewCooldownPeriod*1000)) < timestamp) {
                     this.renewTokenTimestamp = timestamp;
-                    // update reference to iframe, to ensure it is still valid
-                    this.client.authorizationHandler = new AppAuth.RedirectRequestHandler(
-                        // handle redirection within the hidden iframe
-                        void 0, void 0, document.getElementById("AppAuthHelper").contentWindow.location
-                    );
-                    var rsConfig = Object.create(this.appAuthConfig);
-                    rsConfig.scopes = this.appAuthConfig.resourceServers[resourceServer];
-                    authnRequest(this.client, rsConfig, { "prompt": "none" });
-                }
-            }).bind(this));
-        },
-        fetchTokensFromIndexedDB: function () {
-            return new Promise((function (resolve, reject) {
-                var dbReq = indexedDB.open("appAuth"),
-                    upgradeDb = (function () {
-                        return dbReq.result.createObjectStore(this.appAuthConfig.clientId);
-                    }).bind(this),
-                    onsuccess;
-                onsuccess = (function () {
-                    if (!dbReq.result.objectStoreNames.contains(this.appAuthConfig.clientId)) {
-                        var version = dbReq.result.version;
-                        version++;
-                        dbReq.result.close();
-                        dbReq = indexedDB.open("appAuth", version);
-                        dbReq.onupgradeneeded = upgradeDb;
-                        dbReq.onsuccess = onsuccess;
-                        return;
-                    }
-                    var objectStoreRequest = dbReq.result.transaction([this.appAuthConfig.clientId], "readonly")
-                        .objectStore(this.appAuthConfig.clientId).get("tokens");
-                    objectStoreRequest.onsuccess = (function () {
-                        var tokens = objectStoreRequest.result;
-                        dbReq.result.close();
-                        resolve(tokens);
-                    }).bind(this);
-                    objectStoreRequest.onerror = reject;
-                }).bind(this);
 
-                dbReq.onupgradeneeded = upgradeDb;
-                dbReq.onsuccess = onsuccess;
-                dbReq.onerror = reject;
-            }).bind(this));
-        },
-        receiveMessageFromServiceWorker: function (event) {
-            return new Promise((function (resolve) {
-                if (event.data.message === "renewTokens") {
-                    this.renewTokens(event.data.resourceServer);
+                    this.appAuthIframe.contentWindow.postMessage({
+                        message: "appAuth-getFreshAccessToken",
+                        config: this.appAuthConfig,
+                        resourceServer: resourceServer
+                    }, this.iframeOrigin);
                 }
-                resolve();
             }).bind(this));
         },
         registerIdentityProxy: function () {
@@ -354,14 +264,14 @@
                             };
 
                             var sendConfigMessage = (function () {
-                                this.serviceWorkerMessageChannel = new MessageChannel();
-                                this.serviceWorkerMessageChannel.port1.onmessage = (function (event) {
-                                    return this.receiveMessageFromServiceWorker(event).then(resolve);
+                                this.identityProxyMessageChannel.port1.onmessage = (function (event) {
+                                    resolve();
+                                    this.handleIdentityProxyMessage.call(this, event);
                                 }).bind(this);
                                 reg.active.postMessage({
                                     "message": "configuration",
-                                    "config": this.appAuthConfig
-                                }, [this.serviceWorkerMessageChannel.port2]);
+                                    "resourceServers": Object.keys(this.appAuthConfig.resourceServers)
+                                }, [this.identityProxyMessageChannel.port2]);
                             }).bind(this);
 
                             navigator.serviceWorker.ready.then(sendConfigMessage);
@@ -377,43 +287,15 @@
             }).bind(this));
         },
         registerXHRProxy: function () {
-            this.identityProxy = new (require("./IdentityProxyXHR"))(this.appAuthConfig, this.renewTokens.bind(this));
+            if (typeof IdentityProxyXHR !== "undefined") {
+                this.identityProxy = new IdentityProxyXHR(
+                    Object.keys(this.appAuthConfig.resourceServers),
+                    this.identityProxyMessageChannel.port2
+                );
+            } else {
+                throw "Browser incompatible with this build of AppAuthHelper. Use the legacy 'compatible' build instead."
+            }
         }
     };
-
-    /**
-     * Helper function that reduces the amount of duplicated code, as there are several different
-     * places in the code that require initiating an authorization request.
-     */
-    function authnRequest(client, config, extras) {
-        extras = extras || {};
-        var request = new AppAuth.AuthorizationRequest({
-            client_id: config.clientId,
-            redirect_uri: config.redirectUri,
-            scope: config.scopes,
-            response_type: AppAuth.AuthorizationRequest.RESPONSE_TYPE_CODE,
-            // Use the config.extras as the baseline, extend with provided extras
-            extras: Object.keys(extras)
-                        .concat(Object.keys(config.extras || {}))
-                        .reduce(function(result, key) {
-                            result[key] = extras[key] || config.extras[key];
-                            return result;
-                        }, {})
-        });
-
-        client.authorizationHandler.performAuthorizationRequest(
-            client.configuration,
-            request
-        );
-    }
-
-    /**
-     * Simple jwt parsing code purely used for extracting claims.
-     */
-    function getIdTokenClaims(id_token) {
-        return JSON.parse(
-            atob(id_token.split(".")[1].replace("-", "+").replace("_", "/"))
-        );
-    }
 
 }());
