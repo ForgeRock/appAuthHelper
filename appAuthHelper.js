@@ -7,7 +7,7 @@
      */
     module.exports = {
         /** @function init
-         * @param {Object} config - configation needed for working with the OP
+         * @param {Object} config - configuration needed for working with the OP
          * @param {string} config.clientId - The id of this RP client within the OP
          * @param {boolean} config.oidc [true] - indicate whether or not you want OIDC included
          * @param {string} config.authorizationEndpoint - Full URL to the OP authorization endpoint
