@@ -104,7 +104,7 @@
                     break;
                 case "appAuth-interactionRequired":
                     if (this.interactionRequiredHandler) {
-                        this.interactionRequiredHandler(e.data.authorizationUrl);
+                        this.interactionRequiredHandler(e.data.authorizationUrl, e.data.error);
                     } else {
                         // Default behavior for when interaction is required is to redirect to the OP for login.
 

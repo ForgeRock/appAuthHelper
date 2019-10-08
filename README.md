@@ -73,7 +73,7 @@ Once the library is loaded, you have to provide the environmental details along 
             "https://login.example.com/oauth2/userinfo": "profile",
             "https://rs.example.com/": "rs_custom_scope"
         },
-        interactionRequiredHandler: function () {
+        interactionRequiredHandler: function (authorization_request_url, error_reported) {
             // Add whatever is appropriate for your app to do when the user needs to log in.
             // Default behavior (when this handler is unspecified) is to redirect the window
             // to the authorizationEndpoint.

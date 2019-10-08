@@ -23,17 +23,16 @@
                 }, TRUSTED_ORIGIN);
             },
             (error) => {
-                if (error === "interaction_required") {
-                    // When interaction is required, we need to report that to
-                    // the parent frame along with the url that the user needs to
-                    // visit.
-                    tokenManager.getAuthzURL().then((url) =>
-                        parent.postMessage({
-                            message: "appAuth-interactionRequired",
-                            authorizationUrl: url
-                        }, TRUSTED_ORIGIN)
-                    );
-                }
+                // When an error is returned, we need to report that to
+                // the parent frame along with the url that the user needs to
+                // visit and the specific error code.
+                tokenManager.getAuthzURL().then((url) =>
+                    parent.postMessage({
+                        message: "appAuth-interactionRequired",
+                        error: error,
+                        authorizationUrl: url
+                    }, TRUSTED_ORIGIN)
+                );
             })
             .finally(() => {
                 // if we are running in the context of a full window (rather than an iframe)
