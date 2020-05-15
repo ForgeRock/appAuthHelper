@@ -28,6 +28,10 @@
     });
 
     self.addEventListener("fetch", (event) => {
+        if (event.request.headers.get("x-appauthhelper-anonymous") === "true") {
+            event.request.headers.delete("x-appauthhelper-anonymous");
+            return;
+        }
         if (self.identityProxy) {
             var resourceServer = self.identityProxy.getResourceServerFromUrl(event.request.url);
             if (resourceServer && !event.request.headers.get("authorization")) {
