@@ -149,6 +149,8 @@ Once `tokensAvailableHandler` has been called, your application can start using 
 fetch("https://login.example.com/oauth2/userinfo").then((resp) => resp.json())
 ```
 
+If for some reason you do not want the identity proxy to add the access token to your request, you can add the header `x-appauthhelper-anonymous: true` to your http request. Doing so instructs the identity proxy to skip its default behavior and instead just pass the request through; the only change is that the "x-appauthhelper-anonymous: true" header will be removed before the request is dispatched.
+
 You can also read the details about the authenticated user (called "claims") from the argument passed to the `tokensAvailableHandler`. Claims are useful for your application, particularly if you need your application to behave differently for different types of users. The structure of the `claims` object is like so:
 
     {
