@@ -1,3 +1,5 @@
+/* global TRUSTED_ORIGIN */
+
 (function () {
     "use strict";
 
@@ -10,7 +12,7 @@
 
     // don't trigger any default token management behavior unless
     // we have some parameters to process
-    if (appAuthConfig && window.location.hash.replace('#','').length) {
+    if (appAuthConfig && window.location.hash.replace("#","").length) {
         tokenManager = new TokenManager(appAuthConfig);
         tokenManager.getAvailableData()
             .then((data) => {
@@ -80,7 +82,7 @@
                         message: "appAuth-tokensAvailable",
                         idTokenClaims: data.claims
                     }, TRUSTED_ORIGIN);
-                }, (error) => {
+                }, () => {
                     tokenManager.silentAuthzRequest();
                 });
             break;

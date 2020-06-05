@@ -88,7 +88,7 @@
                                             resolve({
                                                 claims: this.appAuthConfig.oidc ? this.getIdTokenClaims(tokens.idToken) : {},
                                                 resourceServer: currentResourceServer
-                                            })
+                                            });
                                         };
                                     };
                                 });
@@ -126,11 +126,11 @@
                 response_type: AppAuth.AuthorizationRequest.RESPONSE_TYPE_CODE,
                 // Use the config.extras as the baseline, extend with provided extras
                 extras: Object.keys(extras)
-                            .concat(Object.keys(config.extras || {}))
-                            .reduce(function(result, key) {
-                                result[key] = extras[key] || config.extras[key];
-                                return result;
-                            }, {})
+                    .concat(Object.keys(config.extras || {}))
+                    .reduce(function(result, key) {
+                        result[key] = extras[key] || config.extras[key];
+                        return result;
+                    }, {})
             });
 
             client.authorizationHandler.performAuthorizationRequest(
@@ -232,27 +232,27 @@
                 this.getResourceServerFromUrl(request.url),
                 this.fetchTokensFromIndexedDB()
             ])
-            .then((results) => {
-                var resourceServer = results[0],
-                    tokens = results[1];
-                if (tokens[resourceServer]) {
-                    request.options.headers["Authorization"] = `Bearer ${tokens[resourceServer]}`;
-                    return request;
-                } else {
-                    // There is no functional difference between a request that failed due to an invalid
-                    // token and a request that was never sent because there was no token to include.
-                    return Promise.reject("invalid_token");
-                }
-            })
-            .then((request) => fetch(request.url, request.options))
-            .then((response) => {
-                if (this.getAuthHeaderDetails(response)["error"] === "invalid_token") {
-                    return Promise.reject("invalid_token");
-                } else {
-                    return response;
-                }
-            })
-            .then((response) => this.serializeResponse(response));
+                .then((results) => {
+                    var resourceServer = results[0],
+                        tokens = results[1];
+                    if (tokens[resourceServer]) {
+                        request.options.headers["Authorization"] = `Bearer ${tokens[resourceServer]}`;
+                        return request;
+                    } else {
+                        // There is no functional difference between a request that failed due to an invalid
+                        // token and a request that was never sent because there was no token to include.
+                        return Promise.reject("invalid_token");
+                    }
+                })
+                .then((request) => fetch(request.url, request.options))
+                .then((response) => {
+                    if (this.getAuthHeaderDetails(response)["error"] === "invalid_token") {
+                        return Promise.reject("invalid_token");
+                    } else {
+                        return response;
+                    }
+                })
+                .then((response) => this.serializeResponse(response));
         },
         getAuthHeaderDetails: function (resp) {
             var authHeader = resp.headers.get("www-authenticate");
@@ -285,7 +285,7 @@
             let headersObj = {};
             let keys = headers.keys();
             let key = null;
-            while (key = keys.next()) {
+            while (key = keys.next()) { // eslint-disable-line no-cond-assign
                 if (key.done) {
                     break;
                 }

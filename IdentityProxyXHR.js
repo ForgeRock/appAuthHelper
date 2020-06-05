@@ -70,18 +70,16 @@
                         Object.defineProperty(this, "response", {
                             "get": function () {
                                 switch (this.responseType) {
-                                    case "json":
-                                        try {
-                                            return JSON.parse(this.responseText);
-                                        } catch (e) {
-                                            return null;
-                                        }
-                                        break;
-                                    case "document":
-                                        return (new DOMParser()).parseFromString(this.responseText, "application/xml");
-                                        break;
-                                    default:
-                                        return this.responseText;
+                                case "json":
+                                    try {
+                                        return JSON.parse(this.responseText);
+                                    } catch (e) {
+                                        return null;
+                                    }
+                                case "document":
+                                    return (new DOMParser()).parseFromString(this.responseText, "application/xml");
+                                default:
+                                    return this.responseText;
                                 }
                             }
                         });
@@ -133,7 +131,7 @@
                 method: request.xhr.method,
                 headers: request.xhr.headers,
                 body: request.body,
-                credentials: !!request.xhr.withCredentials ? "include" : "omit"
+                credentials: request.xhr.withCredentials ? "include" : "omit"
             }
         });
     };
