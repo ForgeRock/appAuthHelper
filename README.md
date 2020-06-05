@@ -81,7 +81,7 @@ Once the library is loaded, you have to provide the environmental details along 
             // A good example of something you might want to do is render the authorizationEndpoint login prompt
             // within an iframe (for a more tightly-integrated login experience). You can do that like so:
 
-            AppAuthHelper.iframeRedirect(document.getElementById('loginIframe'));
+            document.getElementById('loginIframe').contentWindow.location.href = authorization_request_url;
 
             // this assumes that 'loginIframe' is an iframe that has already been mounted to the DOM
         },
@@ -129,9 +129,9 @@ When this function is called, the library will work to return tokens to your app
 
 If there is no way to fetch the tokens non-interactively, the default behavior is for the parent frame to be redirected to the OP authorization endpoint, allowing the user to log in (and possibly provide consent for this RP). Upon successful authentication, the OP will redirect you back to the configured "redirectUri" which will resume execution within your SPA (ultimately using the authorization code returned to fetch the tokens and save them in browser storage).
 
-*Logging in within an iframe:*
+*Handling login yourself:*
 
-If you want your users to be able to log in without having to leave your app, you can specify that behavior in the `interactionRequiredHandler`. For example, you can declare an iframe somewhere within your page and then using `interactionRequiredHandler` you can provide that frame reference to `AppAuthHelper.iframeRedirect`. This will trigger an immediate call to the OP's authentication endpoint within the context of that frame. When the user returns from the OP, the `tokensAvailableHandler` will be triggered in the same way as it would if the user had been redirected within the context of the full window.
+If you don't want the default behavior of redirecting your users to the authorization endpoint when they aren't yet logged in, you can override that default with your own logic using `interactionRequiredHandler`. The `interactionRequiredHandler` function will be called with the default authorization url and the error details from the failed attempt to login silently. One thing you might choose to do with this information is to render an iframe somewhere within your page, using the authorization url as the location. In that case, the user could login within the iframe, and your application wouldn't lose its context. The specific way you might want to handle this event is up to you.
 
 *Logging Out:*
 
