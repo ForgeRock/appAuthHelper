@@ -34,7 +34,6 @@
             };
             XMLHttpRequest.prototype.send = function (body) {
                 if (this.headers["x-appauthhelper-anonymous"] === "true") {
-                    delete this.headers["x-appauthhelper-anonymous"];
                     this.customResponse = false;
                     RealXHRSend.call(this, body);
                     return;

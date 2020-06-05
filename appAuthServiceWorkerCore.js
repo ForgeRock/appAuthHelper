@@ -29,7 +29,6 @@
 
     self.addEventListener("fetch", (event) => {
         if (event.request.headers.get("x-appauthhelper-anonymous") === "true") {
-            event.request.headers.delete("x-appauthhelper-anonymous");
             return;
         }
         if (self.identityProxy) {
