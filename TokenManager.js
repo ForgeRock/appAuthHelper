@@ -63,6 +63,10 @@
                         this.client.tokenHandler
                             .performTokenRequest(this.client.configuration, request)
                             .then((function (token_endpoint_response) {
+                                delete this.client.code;
+                                delete this.client.request;
+                                delete this.client.response;
+
                                 this.fetchTokensFromIndexedDB().then((tokens) => {
                                     var currentResourceServer = sessionStorage.getItem("currentResourceServer");
                                     if (!tokens) {
