@@ -46,7 +46,7 @@
                         body: body
                     }, resourceServer).then(() => {
                         // explicitly set the response details
-                        Object.defineProperty(this, "readystate", {
+                        Object.defineProperty(this, "readyState", {
                             "get": function () {
                                 return 4; // DONE
                             }
