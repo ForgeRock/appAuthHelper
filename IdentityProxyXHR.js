@@ -33,7 +33,8 @@
                 return RealXHRSetRequestHeader.call(this, header, value);
             };
             XMLHttpRequest.prototype.send = function (body) {
-                if (this.headers && this.headers["x-appauthhelper-anonymous"] === "true") {
+                this.headers = this.headers || {};
+                if (this.headers["x-appauthhelper-anonymous"] === "true") {
                     this.customResponse = false;
                     RealXHRSend.call(this, body);
                     return;
