@@ -23,6 +23,7 @@
          * @param {number} config.renewCooldownPeriod [1] - Minimum time (in seconds) between requests to the authorizationEndpoint for token renewal attempts
          * @param {string} config.redirectUri [appAuthHelperRedirect.html] - The redirect uri registered in the OP
          * @param {string} config.serviceWorkerUri [appAuthServiceWorker.js] - The path to the service worker script
+         * @param {string} config.identityProxyPreference [serviceWorker] - Preferred identity proxy implementation (serviceWorker or XHR)
          */
         init: function (config) {
             var calculatedRedirectUriLink = document.createElement("a"),
@@ -41,6 +42,7 @@
             this.interactionRequiredHandler = config.interactionRequiredHandler;
             this.appAuthConfig.oidc = typeof config.oidc !== "undefined" ? !!config.oidc : true;
             this.pendingResourceServerRenewals = [];
+            this.identityProxyPreference = config.identityProxyPreference || "serviceWorker";
 
             if (!config.redirectUri) {
                 calculatedRedirectUriLink.href = "appAuthHelperRedirect.html";
@@ -241,7 +243,7 @@
         },
         registerIdentityProxy: function () {
             return new Promise((function (resolve) {
-                if ("serviceWorker" in navigator) {
+                if (this.identityProxyPreference === "serviceWorker" && "serviceWorker" in navigator) {
                     navigator.serviceWorker.register(this.appAuthConfig.serviceWorkerUri)
                         .then((function (reg) {
 

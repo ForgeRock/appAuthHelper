@@ -98,6 +98,7 @@ Once the library is loaded, you have to provide the environmental details along 
         },
         renewCooldownPeriod: 1,
         oidc: true,
+        identityProxyPreference: "XHR", // can be either "XHR" or "serviceWorker"
         redirectUri: "appAuthHelperRedirect.html", // can be a relative or absolute url
         serviceWorkerUri: "appAuthServiceWorker.js" // can be a relative or absolute url
     });
@@ -116,6 +117,7 @@ Once the library is loaded, you have to provide the environmental details along 
  - interactionRequiredHandler - optional function to be called when the user needs to interact with the OP; for example, to log in.
  - renewCooldownPeriod [default: 1] - Minimum time (in seconds) between requests to the authorizationEndpoint for token renewal attempts
  - oidc [default: true] - indicate whether or not you want to get back an id_token
+ - identityProxyPreference [default: serviceWorker] - Preferred identity proxy implementation (serviceWorker or XHR)
  - redirectUri [default: appAuthHelperRedirect.html] - The redirect uri registered in the OP
  - serviceWorkerUri [default: appAuthServiceWorker.js] - Path to the service worker script. Make sure it is located low enough in your URL path so that its scope encapsulates all application code making network requests. See [Why is my service worker failing to register?](https://developer.mozilla.org/en-US/docs/Web/API/Service_Worker_API/Using_Service_Workers#Why_is_my_service_worker_failing_to_register) if you have questions.
 
@@ -148,6 +150,12 @@ Once `tokensAvailableHandler` has been called, your application can start using 
 ```
 fetch("https://login.example.com/oauth2/userinfo").then((resp) => resp.json())
 ```
+
+You have the option to specify the type of identity proxy you prefer AppAuthHelper uses - either serviceWorker (the default) or XHR.
+
+The serviceWorker option will install a service worker to intercept all outgoing network requests, to add the token (and renew it if needed). This option supports both `fetch` and `XHR` types of network traffic.
+
+The XHR option involves overriding the browser's native XHR object with the extra token management logic. This option is simpler and workers in more browsers, but it does not support the use of `fetch`. To use this you have to use the "compat" build, as described in "Supporting Legacy Browsers" below.
 
 If for some reason you do not want the identity proxy to add the access token to your request, you can add the header `x-appauthhelper-anonymous: true` to your http request. Doing so instructs the identity proxy to skip its default behavior and instead just pass the request through; the only change is that the "x-appauthhelper-anonymous: true" header will be removed before the request is dispatched.
 
