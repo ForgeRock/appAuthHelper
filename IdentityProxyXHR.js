@@ -126,14 +126,23 @@
     };
 
     IdentityProxyXHR.prototype.serializeRequest = function (request) {
-        return Promise.resolve({
-            url: request.xhr.url,
-            options: {
+        return new Promise((resolve) => {
+            new Request(request.xhr.url, {
                 method: request.xhr.method,
                 headers: request.xhr.headers,
-                body: request.body,
+                body: ["GET","HEAD"].indexOf(request.xhr.method.toUpperCase()) === -1 && request.body ? request.body : undefined,
                 credentials: request.xhr.withCredentials ? "include" : "omit"
-            }
+            }).text().then((bodyText) =>
+                resolve({
+                    url: request.xhr.url,
+                    options: {
+                        method: request.xhr.method,
+                        headers: request.xhr.headers,
+                        body: ["GET","HEAD"].indexOf(request.xhr.method.toUpperCase()) === -1 && bodyText.length ? bodyText : undefined,
+                        credentials: request.xhr.withCredentials ? "include" : "omit"
+                    }
+                })
+            );
         });
     };
 
