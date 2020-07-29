@@ -64,7 +64,7 @@
                             contentParts = decodedContent.match(/--(-+WebKitFormBoundary.*)/);
                         if (contentParts.length >= 2) {
                             // replace the mixed-case boundary references with the lowercase one set in the blob type
-                            resolve(new Blob([decodedContent.replaceAll(contentParts[1], typeParts[1])], {type: originalBlob.type}));
+                            resolve(new Blob([decodedContent.replace(new RegExp(contentParts[1], "g"), typeParts[1])], {type: originalBlob.type}));
                         } else {
                             resolve(originalBlob);
                         }
