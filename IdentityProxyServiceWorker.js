@@ -18,7 +18,9 @@
 
     IdentityProxyServiceWorker.prototype.serializeRequest = function (request) {
         return new Promise((resolve) => {
-            request.clone().blob().then((bodyBlob) =>
+            request.clone().blob()
+            .then((bodyBlob) => this.fixupBlobContentType(bodyBlob))
+            .then((bodyBlob) =>
                 resolve({
                     url: request.url,
                     options: {

@@ -51,6 +51,27 @@
                 };
             });
         },
+        fixupBlobContentType: function (originalBlob) {
+            // work around for a bug in webkit which does not set the case of the boundary in the request content properly
+            var typeParts = originalBlob.type.match(/multipart\/form-data; boundary=(----webkitformboundary.*)/);
+            if (!typeParts) {
+                return Promise.resolve(originalBlob);
+            } else {
+                return new Promise((resolve) => {
+                    originalBlob.arrayBuffer()
+                    .then((buf) => {
+                        var decodedContent = (new TextDecoder()).decode(buf),
+                            contentParts = decodedContent.match(/--(-+WebKitFormBoundary.*)/);
+                        if (contentParts.length >= 2) {
+                            // replace the mixed-case boundary references with the lowercase one set in the blob type
+                            resolve(new Blob([decodedContent.replaceAll(contentParts[1], typeParts[1])], {type: originalBlob.type}));
+                        } else {
+                            resolve(originalBlob);
+                        }
+                    });
+                });
+            }
+        },
         interceptRequest: function (request, resourceServer) {
             return new Promise((resolve, reject) =>
                 this.serializeRequest(request).then((serializedRequest) =>
