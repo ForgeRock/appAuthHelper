@@ -9,7 +9,7 @@
       }]
   ],
   "env": {
-    "compat": {
+    "Compat": {
       "presets": [
         ["@babel/preset-env", {
           "targets": {
