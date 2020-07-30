@@ -1,6 +1,6 @@
 {
   "name": "appauthhelper",
-  "version": "0.3.15",
+  "version": "0.3.16",
   "description": "Wrapper for AppAuthJS to assist with silent token acquisition and renewal",
   "main": "appAuthHelper.js",
   "scripts": {
