@@ -59,16 +59,16 @@
             } else {
                 return new Promise((resolve) => {
                     originalBlob.arrayBuffer()
-                    .then((buf) => {
-                        var decodedContent = (new TextDecoder()).decode(buf),
-                            contentParts = decodedContent.match(/--(-+WebKitFormBoundary.*)/);
-                        if (contentParts.length >= 2) {
-                            // replace the mixed-case boundary references with the lowercase one set in the blob type
-                            resolve(new Blob([decodedContent.replace(new RegExp(contentParts[1], "g"), typeParts[1])], {type: originalBlob.type}));
-                        } else {
-                            resolve(originalBlob);
-                        }
-                    });
+                        .then((buf) => {
+                            var decodedContent = (new TextDecoder()).decode(buf),
+                                contentParts = decodedContent.match(/--(-+WebKitFormBoundary.*)/);
+                            if (contentParts.length >= 2) {
+                                // replace the mixed-case boundary references with the lowercase one set in the blob type
+                                resolve(new Blob([decodedContent.replace(new RegExp(contentParts[1], "g"), typeParts[1])], {type: originalBlob.type}));
+                            } else {
+                                resolve(originalBlob);
+                            }
+                        });
                 });
             }
         },

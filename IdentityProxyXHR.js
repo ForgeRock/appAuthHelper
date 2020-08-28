@@ -133,18 +133,18 @@
                 body: ["GET","HEAD"].indexOf(request.xhr.method.toUpperCase()) === -1 && request.body ? request.body : undefined,
                 credentials: request.xhr.withCredentials ? "include" : "omit"
             }).blob()
-            .then((bodyBlob) => this.fixupBlobContentType(bodyBlob))
-            .then((bodyBlob) =>
-                resolve({
-                    url: request.xhr.url,
-                    options: {
-                        method: request.xhr.method,
-                        headers: request.xhr.headers,
-                        body: ["GET","HEAD"].indexOf(request.xhr.method.toUpperCase()) === -1 && bodyBlob && bodyBlob.size ? bodyBlob : undefined,
-                        credentials: request.xhr.withCredentials ? "include" : "omit"
-                    }
-                })
-            );
+                .then((bodyBlob) => this.fixupBlobContentType(bodyBlob))
+                .then((bodyBlob) =>
+                    resolve({
+                        url: request.xhr.url,
+                        options: {
+                            method: request.xhr.method,
+                            headers: request.xhr.headers,
+                            body: ["GET","HEAD"].indexOf(request.xhr.method.toUpperCase()) === -1 && bodyBlob && bodyBlob.size ? bodyBlob : undefined,
+                            credentials: request.xhr.withCredentials ? "include" : "omit"
+                        }
+                    })
+                );
         });
     };
 

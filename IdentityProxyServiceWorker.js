@@ -19,23 +19,23 @@
     IdentityProxyServiceWorker.prototype.serializeRequest = function (request) {
         return new Promise((resolve) => {
             request.clone().blob()
-            .then((bodyBlob) => this.fixupBlobContentType(bodyBlob))
-            .then((bodyBlob) =>
-                resolve({
-                    url: request.url,
-                    options: {
-                        method: request.method,
-                        headers: this.serializeHeaders(request.headers),
-                        body: ["GET","HEAD"].indexOf(request.method.toUpperCase()) === -1 && bodyBlob && bodyBlob.size ? bodyBlob : undefined,
-                        mode: request.mode,
-                        credentials: request.credentials,
-                        cache: request.cache,
-                        redirect: request.redirect,
-                        referrer: request.referrer,
-                        integrity: request.integrity
-                    }
-                })
-            );
+                .then((bodyBlob) => this.fixupBlobContentType(bodyBlob))
+                .then((bodyBlob) =>
+                    resolve({
+                        url: request.url,
+                        options: {
+                            method: request.method,
+                            headers: this.serializeHeaders(request.headers),
+                            body: ["GET","HEAD"].indexOf(request.method.toUpperCase()) === -1 && bodyBlob && bodyBlob.size ? bodyBlob : undefined,
+                            mode: request.mode,
+                            credentials: request.credentials,
+                            cache: request.cache,
+                            redirect: request.redirect,
+                            referrer: request.referrer,
+                            integrity: request.integrity
+                        }
+                    })
+                );
         });
     };
 
