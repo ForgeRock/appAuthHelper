@@ -62,12 +62,16 @@
             this.appAuthConfig.extras = config.extras || {};
             this.appAuthConfig.resourceServers = config.resourceServers || {};
             this.appAuthConfig.clientId = config.clientId;
-            this.appAuthConfig.scopes = (this.appAuthConfig.oidc ? ["openid"] : [])
-                .concat(
-                    Object.keys(this.appAuthConfig.resourceServers).reduce((function (scopes, rs) {
-                        return scopes.concat(this.appAuthConfig.resourceServers[rs]);
-                    }).bind(this), [])
-                ).join(" ");
+            // get a distinct list of scopes from all resource servers
+            this.appAuthConfig.scopes = Object.keys(this.appAuthConfig.resourceServers)
+                .reduce((function (scopes, rs) {
+                    return scopes.concat(
+                        this.appAuthConfig.resourceServers[rs].split(" ").filter((function (scope) {
+                            return scopes.indexOf(scope) === -1;
+                        }))
+                    );
+                }).bind(this), this.appAuthConfig.oidc ? ["openid"] : [])
+                .join(" ");
 
             this.appAuthConfig.endpoints = {
                 "authorization_endpoint": config.authorizationEndpoint,
