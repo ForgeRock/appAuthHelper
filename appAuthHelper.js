@@ -265,6 +265,11 @@
                                     "message": "configuration",
                                     "resourceServers": Object.keys(this.appAuthConfig.resourceServers)
                                 }, [this.identityProxyMessageChannel.port2]);
+                                setInterval(function () {
+                                    // prevents the service worker thread from becoming idle and losing
+                                    // the references we just passed into it.
+                                    reg.active.postMessage({"message": "keepAlive"});
+                                }, 1000);
                             }).bind(this);
 
                             navigator.serviceWorker.ready.then(sendConfigMessage);
