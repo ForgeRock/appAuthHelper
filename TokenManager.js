@@ -261,12 +261,12 @@
         getAuthHeaderDetails: function (resp) {
             var authHeader = resp.headers.get("www-authenticate");
 
-            if (!resp.ok && authHeader && authHeader.match(/^Bearer /)) {
-                return authHeader.replace(/^Bearer /, "")
+            if (!resp.ok && authHeader && authHeader.match(/^Bearer\b/)) {
+                return authHeader.replace(/^Bearer\b/, "")
                     .match(/[^,=]+=".*?"/g)
                     .reduce(function (result, detail) {
                         var pair = detail.split("=");
-                        result[pair[0]] = pair[1].replace(/"(.*)"/, "$1");
+                        result[pair[0].replace(/\s/g, '')] = pair[1].replace(/"(.*)"/, "$1");
                         return result;
                     }, {});
             } else {
