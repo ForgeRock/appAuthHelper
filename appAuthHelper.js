@@ -30,7 +30,7 @@
                 calculatedSWUriLink = document.createElement("a"),
                 promise;
 
-            sessionStorage.removeItem("currentResourceServer");
+            localStorage.removeItem("currentResourceServer");
             this.appAuthIframe = document.createElement("iframe");
             this.rsIframe = document.createElement("iframe");
 
@@ -86,15 +86,15 @@
                 }
                 switch (e.data.message) {
                 case "appAuth-tokensAvailable":
-                    var originalWindowHash = sessionStorage.getItem("originalWindowHash-" + this.appAuthConfig.clientId);
+                    var originalWindowHash = localStorage.getItem("originalWindowHash-" + this.appAuthConfig.clientId);
                     if (originalWindowHash !== null) {
                         window.location.hash = originalWindowHash;
-                        sessionStorage.removeItem("originalWindowHash-" + this.appAuthConfig.clientId);
+                        localStorage.removeItem("originalWindowHash-" + this.appAuthConfig.clientId);
                     }
 
                     // this should only be set as part of token renewal
                     if (e.data.resourceServer) {
-                        sessionStorage.removeItem("currentResourceServer");
+                        localStorage.removeItem("currentResourceServer");
                         this.renewTokenTimestamp = false;
 
                         if (this.pendingResourceServerRenewals.length) {
@@ -118,8 +118,8 @@
 
                         if (window.location.hash.replace("#","").length) {
                             // When interaction is required, the current hash state may be lost during redirection.
-                            // Save it in sessionStorage so that it can be returned to upon successfully authenticating
-                            sessionStorage.setItem("originalWindowHash-" + this.appAuthConfig.clientId, window.location.hash);
+                            // Save it in localStorage so that it can be returned to upon successfully authenticating
+                            localStorage.setItem("originalWindowHash-" + this.appAuthConfig.clientId, window.location.hash);
                         }
                         window.location.href = e.data.authorizationUrl;
                     }
@@ -218,9 +218,9 @@
         },
         whenRenewTokenFrameAvailable: function (resourceServer) {
             return new Promise((function (resolve) {
-                var currentResourceServer = sessionStorage.getItem("currentResourceServer");
+                var currentResourceServer = localStorage.getItem("currentResourceServer");
                 if (currentResourceServer === null) {
-                    sessionStorage.setItem("currentResourceServer", resourceServer);
+                    localStorage.setItem("currentResourceServer", resourceServer);
                     currentResourceServer = resourceServer;
                 }
                 if (resourceServer === currentResourceServer) {
@@ -233,7 +233,7 @@
         renewTokens: function (resourceServer) {
             this.whenRenewTokenFrameAvailable(resourceServer).then((function () {
                 var timestamp = (new Date()).getTime();
-                sessionStorage.setItem("currentResourceServer", resourceServer);
+                localStorage.setItem("currentResourceServer", resourceServer);
                 if (!this.renewTokenTimestamp || (this.renewTokenTimestamp + (this.renewCooldownPeriod*1000)) < timestamp) {
                     this.renewTokenTimestamp = timestamp;
 

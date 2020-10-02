@@ -6,7 +6,7 @@
     // appAuth expects the details to be provided via hash, so copy them there
     window.location.hash = window.location.search.substring(1); // removes the '?'
 
-    var appAuthConfig = JSON.parse(sessionStorage.getItem("appAuthConfig")),
+    var appAuthConfig = JSON.parse(localStorage.getItem("appAuthConfig")),
         TokenManager = require("./TokenManager"),
         tokenManager;
 
@@ -57,7 +57,7 @@
         tokenManager = tokenManager || new TokenManager(e.data.config);
         switch (e.data.message) {
         case "appAuth-config":
-            sessionStorage.setItem("appAuthConfig", JSON.stringify(e.data.config));
+            localStorage.setItem("appAuthConfig", JSON.stringify(e.data.config));
             // There normally shouldn't be an active authorization request going on when the
             // config is first passed in here. Just in case we somehow got here with a
             // remnant left over, clean it out.

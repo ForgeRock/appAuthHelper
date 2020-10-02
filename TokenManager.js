@@ -68,7 +68,7 @@
                                 delete this.client.response;
 
                                 this.fetchTokensFromIndexedDB().then((tokens) => {
-                                    var currentResourceServer = sessionStorage.getItem("currentResourceServer");
+                                    var currentResourceServer = localStorage.getItem("currentResourceServer");
                                     if (!tokens) {
                                         tokens = {};
                                     }
@@ -78,7 +78,7 @@
 
                                     if (currentResourceServer !== null) {
                                         tokens[currentResourceServer] = token_endpoint_response.accessToken;
-                                        sessionStorage.removeItem("currentResourceServer");
+                                        localStorage.removeItem("currentResourceServer");
                                     } else {
                                         tokens.accessToken = token_endpoint_response.accessToken;
                                     }
@@ -145,7 +145,7 @@
         silentAuthzRequest: function (resourceServer) {
             let config = Object.create(this.appAuthConfig);
             if (resourceServer) {
-                sessionStorage.setItem("currentResourceServer", resourceServer);
+                localStorage.setItem("currentResourceServer", resourceServer);
                 config.scopes = this.appAuthConfig.resourceServers[resourceServer];
             }
             // we don't have tokens yet, but we might be in the process of obtaining them
