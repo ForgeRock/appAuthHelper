@@ -266,7 +266,7 @@
                     .match(/[^,=]+=".*?"/g)
                     .reduce(function (result, detail) {
                         var pair = detail.split("=");
-                        result[pair[0].replace(/\s/g, '')] = pair[1].replace(/"(.*)"/, "$1");
+                        result[pair[0].replace(/\s/g, "")] = pair[1].replace(/"(.*)"/, "$1");
                         return result;
                     }, {});
             } else {
