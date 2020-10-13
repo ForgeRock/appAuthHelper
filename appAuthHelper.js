@@ -248,40 +248,51 @@
         registerIdentityProxy: function () {
             return new Promise((function (resolve) {
                 if (this.identityProxyPreference === "serviceWorker" && "serviceWorker" in navigator) {
-                    navigator.serviceWorker.register(this.appAuthConfig.serviceWorkerUri)
-                        .then((function (reg) {
 
-                            this.identityProxy = {
-                                tokensRenewed: function (currentResourceServer) {
-                                    navigator.serviceWorker.controller.postMessage({
-                                        "message": "tokensRenewed",
-                                        "resourceServer": currentResourceServer
-                                    });
-                                }
-                            };
+                    var savedReg;
+                    var registerServiceWorker = (function() {
+                        return navigator.serviceWorker.register(this.appAuthConfig.serviceWorkerUri)
+                            .then((function (reg) {
+                                savedReg = reg;
+                                navigator.serviceWorker.ready.then((function () {
+                                    this.identityProxyMessageChannel.port1.onmessage = (function (event) {
+                                        resolve();
+                                        this.handleIdentityProxyMessage.call(this, event);
+                                    }).bind(this);
 
-                            var sendConfigMessage = (function () {
-                                this.identityProxyMessageChannel.port1.onmessage = (function (event) {
-                                    resolve();
-                                    this.handleIdentityProxyMessage.call(this, event);
-                                }).bind(this);
-                                reg.active.postMessage({
-                                    "message": "configuration",
-                                    "resourceServers": Object.keys(this.appAuthConfig.resourceServers)
-                                }, [this.identityProxyMessageChannel.port2]);
-                                setInterval(function () {
-                                    // prevents the service worker thread from becoming idle and losing
-                                    // the references we just passed into it.
-                                    reg.active.postMessage({"message": "keepAlive"});
-                                }, 1000);
-                            }).bind(this);
+                                    reg.active.postMessage({
+                                        "message": "configuration",
+                                        "resourceServers": Object.keys(this.appAuthConfig.resourceServers)
+                                    }, [this.identityProxyMessageChannel.port2]);
+                                }).bind(this));
+                            }).bind(this));
+                    }).bind(this);
 
-                            navigator.serviceWorker.ready.then(sendConfigMessage);
-                        }).bind(this))
-                        .catch((function () {
-                            this.registerXHRProxy();
-                            resolve();
-                        }).bind(this));
+                    this.identityProxy = {
+                        tokensRenewed: function (currentResourceServer) {
+                            navigator.serviceWorker.controller.postMessage({
+                                "message": "tokensRenewed",
+                                "resourceServer": currentResourceServer
+                            });
+                        }
+                    };
+
+                    setInterval(function () {
+                        if (savedReg.active) {
+                            // prevents the service worker thread from becoming idle and losing
+                            // the references we just passed into it.
+                            savedReg.active.postMessage({"message": "keepAlive"});
+                        } else {
+                            // In case the service worker still somehow manages to become inactive,
+                            // re-registers it.
+                            registerServiceWorker();
+                        }
+                    }, 1000);
+
+                    registerServiceWorker().catch((function () {
+                        this.registerXHRProxy();
+                        resolve();
+                    }).bind(this));
                 } else {
                     this.registerXHRProxy();
                     resolve();
