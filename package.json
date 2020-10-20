@@ -4,13 +4,13 @@
   "description": "Wrapper for AppAuthJS to assist with silent token acquisition and renewal",
   "main": "appAuthHelper.js",
   "scripts": {
-    "pretest": "eslint . --fix",
+    "pretest": "eslint .",
     "build-appAuthHelper": "browserify --s AppAuthHelper -o appAuthHelperBundle.js appAuthHelper$BABEL_ENV.js && babel --out-file appAuthHelperBundle.js appAuthHelperBundle.js && cp copyrights.js appAuthHelperBundleTmp.js && cat appAuthHelperBundle.js >> appAuthHelperBundleTmp.js && mv appAuthHelperBundleTmp.js appAuthHelperBundle.js",
     "build-appAuthHelperFetchTokens": "browserify -o appAuthHelperFetchTokensBundle.js appAuthHelperFetchTokens$BABEL_ENV.js && babel --out-file appAuthHelperFetchTokensBundle.js appAuthHelperFetchTokensBundle.js && cp copyrights.js appAuthHelperFetchTokensBundleTmp.js && cat appAuthHelperFetchTokensBundle.js >> appAuthHelperFetchTokensBundleTmp.js && mv appAuthHelperFetchTokensBundleTmp.js appAuthHelperFetchTokensBundle.js",
     "build-appAuthServiceWorker": "browserify -o appAuthServiceWorker.js appAuthServiceWorkerCore.js && babel --out-file appAuthServiceWorker.js appAuthServiceWorker.js && cp copyrights.js appAuthServiceWorkerTmp.js && cat appAuthServiceWorker.js >> appAuthServiceWorkerTmp.js && mv appAuthServiceWorkerTmp.js appAuthServiceWorker.js",
     "build": "npm run build-appAuthHelper && npm run build-appAuthHelperFetchTokens && npm run build-appAuthServiceWorker",
     "build-compat": "BABEL_ENV=Compat npm run build && cp compat-copyrights.js appAuthHelperBundleTmp.js && cat appAuthHelperBundle.js >> appAuthHelperBundleTmp.js && mv appAuthHelperBundleTmp.js appAuthHelperBundle.js && cp compat-copyrights.js appAuthHelperFetchTokensBundleTmp.js && cat appAuthHelperFetchTokensBundle.js >> appAuthHelperFetchTokensBundleTmp.js && mv appAuthHelperFetchTokensBundleTmp.js appAuthHelperFetchTokensBundle.js",
-    "test": "jest -u --watchAll"
+    "test": "jest"
   },
   "repository": {
     "type": "git",
