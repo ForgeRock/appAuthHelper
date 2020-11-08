@@ -5,7 +5,6 @@
 
     // appAuth expects the details to be provided via hash, so copy them there
     window.location.hash = window.location.search.substring(1); // removes the '?'
-
     var appAuthConfig = JSON.parse(localStorage.getItem("appAuthConfig")),
         TokenManager = require("./TokenManager"),
         tokenManager;
@@ -95,5 +94,4 @@
             break;
         }
     });
-
 }());

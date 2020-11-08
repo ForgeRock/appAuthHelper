@@ -1,0 +1,13 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`IdentityProxyXHR has the expected shape 1`] = `
+Object {
+  "failedRequestQueue": Object {},
+  "resourceServers": Array [
+    "https://test.com",
+  ],
+  "transmissionPort": Object {
+    "postMessage": [Function],
+  },
+}
+`;

@@ -3,7 +3,8 @@
         "browser": true,
         "commonjs": true,
         "amd": true,
-        "es6": true
+        "es6": true,
+        "jest/globals": true
     },
     "extends": "eslint:recommended",
     "parserOptions": {
@@ -12,6 +13,7 @@
             "impliedStrict": true
         }
     },
+    "plugins": ["jest"],
     "rules": {
         "indent": [
             "error",
