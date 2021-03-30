@@ -24,6 +24,7 @@
          * @param {string} config.redirectUri [appAuthHelperRedirect.html] - The redirect uri registered in the OP
          * @param {string} config.serviceWorkerUri [appAuthServiceWorker.js] - The path to the service worker script
          * @param {string} config.identityProxyPreference [serviceWorker] - Preferred identity proxy implementation (serviceWorker or XHR)
+         * @param {string} config.renewStrategy [authCode] - Preferred access token renewal strategy (authcode or refreshToken)
          */
         init: function (config) {
             var calculatedRedirectUriLink = document.createElement("a"),
@@ -41,6 +42,7 @@
             this.tokensAvailableHandler = config.tokensAvailableHandler;
             this.interactionRequiredHandler = config.interactionRequiredHandler;
             this.appAuthConfig.oidc = typeof config.oidc !== "undefined" ? !!config.oidc : true;
+            this.appAuthConfig.renewStrategy = config.renewStrategy || "authCode";
             this.pendingResourceServerRenewals = [];
             this.identityProxyPreference = config.identityProxyPreference || "serviceWorker";
 
