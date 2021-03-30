@@ -270,8 +270,7 @@
                         return register;
                     }).bind(this);
 
-                    registerServiceWorker()
-                    .then((function () {
+                    registerServiceWorker().then((function () {
                         this.identityProxy = {
                             tokensRenewed: function (currentResourceServer) {
                                 navigator.serviceWorker.controller.postMessage({
@@ -292,13 +291,13 @@
                                 registerServiceWorker().catch((function () {
                                     // somehow we stopped being able to register the service worker? Fall back to XHR in a last-ditch effort to keep working.
                                     this.registerXHRProxy();
+                                    // eslint-disable-next-line no-console
                                     console.warn("Service worker failure, switching to XHR identity proxy");
                                     clearInterval(tick);
                                 }).bind(this));
                             }
                         }).bind(this), 1000);
-                    }).bind(this))
-                    .catch((function () {
+                    }).bind(this)).catch((function () {
                         this.registerXHRProxy();
                         if (tick) {
                             clearInterval(tick);
