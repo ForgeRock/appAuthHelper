@@ -73,7 +73,14 @@
             });
             break;
         case "appAuth-getFreshAccessToken":
-            tokenManager.silentAuthzRequest(e.data.resourceServer);
+            tokenManager.silentAuthzRequest(e.data.resourceServer).then((strategyUsed) => {
+                if (strategyUsed === "refreshToken") {
+                    parent.postMessage({
+                        message: "appAuth-tokensAvailable",
+                        resourceServer: e.data.resourceServer
+                    }, TRUSTED_ORIGIN);
+                }
+            });
             break;
         case "appAuth-getAvailableData":
             tokenManager.getAvailableData()

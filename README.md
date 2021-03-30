@@ -36,7 +36,7 @@ To make the interaction between the RP and the OP more smooth, this library is d
 
 Each resource server your application wants to work with should use a unique access token. This is considered the best practice, as it limits the exposure of scopes to only those resource servers which ought to be using them. AppAuthHelper automates this best practice - for each resource server you declare, a unique access token (with the appropriate scopes) will be requested. The identity proxy will find the appropriate token for your request and automatically include it.
 
-In the case when your request fails because the access token has expired, the identity proxy will automatically attempt to obtain a fresh access token and then retry the request with that fresh token. This can be detected when the resource server responds with a `www-authenticate` header along with an `error=invalid_token` detail. If this happens while the user still has a valid session within the OP, a new access token can be silently obtained using the iframe. This is essentially the process described in https://tools.ietf.org/html/rfc6750#section-3.1:
+In the case when your request fails because the access token has expired, the identity proxy will automatically attempt to obtain a fresh access token and then retry the request with that fresh token. This can be detected when the resource server responds with a `www-authenticate` header along with an `error=invalid_token` detail. This is essentially the process described in https://tools.ietf.org/html/rfc6750#section-3.1:
 
 > invalid_token
 >     The access token provided is expired, revoked, malformed, or
@@ -46,6 +46,8 @@ In the case when your request fails because the access token has expired, the id
 >     request.
 
 Thanks to the identity proxy, you won't have to worry about implementing this retry logic yourself. Just make the calls to your APIs and let the proxy handle the tokens. For more details on how the identity proxy accomplishes this, review this article: [Service Workers as an Identity Proxy](./service_workers.md).
+
+AppAuthHelper has two ways to renew an expired access token: a silent authorization code grant (the default behavior), or a refresh token grant. If this happens while the user still has a valid session within the OP (and the OP no longer prompts for consent), a new access token can be silently obtained by initiating a new authorization code grant within a hidden iframe. If you do not want your RP to depend on an active session within the OP (or if the OP requires consent for each authorization code grant) then you can tell AppAuthHelper to use a refresh token grant instead. Be sure the OP has been configured to allow this RP to use the refresh token grant if you choose this option.
 
 ## Using this library
 
@@ -99,6 +101,7 @@ Once the library is loaded, you have to provide the environmental details along 
         renewCooldownPeriod: 1,
         oidc: true,
         identityProxyPreference: "XHR", // can be either "XHR" or "serviceWorker"
+        renewStrategy: "authCode", // can be either "authCode" or "refreshToken"
         redirectUri: "appAuthHelperRedirect.html", // can be a relative or absolute url
         serviceWorkerUri: "appAuthServiceWorker.js" // can be a relative or absolute url
     });
@@ -118,6 +121,7 @@ Once the library is loaded, you have to provide the environmental details along 
  - renewCooldownPeriod [default: 1] - Minimum time (in seconds) between requests to the authorizationEndpoint for token renewal attempts
  - oidc [default: true] - indicate whether or not you want to get back an id_token
  - identityProxyPreference [default: serviceWorker] - Preferred identity proxy implementation (serviceWorker or XHR)
+ - renewStrategy [default: authCode] - Preferred method for obtaining fresh (and down-scoped) access tokens (authCode or refreshToken); see "How it works" for details.
  - redirectUri [default: appAuthHelperRedirect.html] - The redirect uri registered in the OP
  - serviceWorkerUri [default: appAuthServiceWorker.js] - Path to the service worker script. Make sure it is located low enough in your URL path so that its scope encapsulates all application code making network requests. See [Why is my service worker failing to register?](https://developer.mozilla.org/en-US/docs/Web/API/Service_Worker_API/Using_Service_Workers#Why_is_my_service_worker_failing_to_register) if you have questions.
 

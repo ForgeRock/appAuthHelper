@@ -73,7 +73,10 @@
                                         tokens = {};
                                     }
                                     if (token_endpoint_response.idToken) {
-                                        tokens["idToken"] = token_endpoint_response.idToken;
+                                        tokens.idToken = token_endpoint_response.idToken;
+                                    }
+                                    if (this.appAuthConfig.renewStrategy === "refreshToken" && token_endpoint_response.refreshToken) {
+                                        tokens.refreshToken = token_endpoint_response.refreshToken;
                                     }
 
                                     if (currentResourceServer !== null) {
@@ -82,19 +85,10 @@
                                     } else {
                                         tokens.accessToken = token_endpoint_response.accessToken;
                                     }
-
-                                    var dbReq = indexedDB.open("appAuth");
-                                    dbReq.onsuccess = () => {
-                                        var objectStoreRequest = dbReq.result.transaction([this.client.clientId], "readwrite")
-                                            .objectStore(this.client.clientId).put(tokens, "tokens");
-                                        objectStoreRequest.onsuccess = () => {
-                                            dbReq.result.close();
-                                            resolve({
-                                                claims: this.appAuthConfig.oidc ? this.getIdTokenClaims(tokens.idToken) : {},
-                                                resourceServer: currentResourceServer
-                                            });
-                                        };
-                                    };
+                                    this.updateTokensInIndexedDB(tokens).then(() => resolve({
+                                        claims: this.appAuthConfig.oidc ? this.getIdTokenClaims(tokens.idToken) : {},
+                                        resourceServer: currentResourceServer
+                                    }));
                                 });
                             }).bind(this));
 
@@ -144,18 +138,64 @@
         },
         silentAuthzRequest: function (resourceServer) {
             let config = Object.create(this.appAuthConfig);
+            let authCodeGrantStrategy = () => {
+                // we don't have tokens yet, but we might be in the process of obtaining them
+                return this.checkForActiveAuthzRequest().then((function (hasActiveRequest) {
+                    if (!hasActiveRequest) {
+                        // only start a new authorization request if there isn't already an active one
+                        // attempt silent authorization
+                        this.authzRequest(this.client, config, { "prompt": "none" });
+                    }
+                    return "authCode";
+                }).bind(this));
+            };
+
             if (resourceServer) {
                 localStorage.setItem("currentResourceServer", resourceServer);
                 config.scopes = this.appAuthConfig.resourceServers[resourceServer];
             }
-            // we don't have tokens yet, but we might be in the process of obtaining them
-            this.checkForActiveAuthzRequest().then((function (hasActiveRequest) {
-                if (!hasActiveRequest) {
-                    // only start a new authorization request if there isn't already an active one
-                    // attempt silent authorization
-                    this.authzRequest(this.client, config, { "prompt": "none" });
-                }
-            }).bind(this));
+
+            if (config.renewStrategy === "authCode" || !resourceServer) {
+                return authCodeGrantStrategy.call(this);
+            } else {
+                return this.fetchTokensFromIndexedDB().then((tokens) => {
+                    // We can only use the refreshToken strategy if we actually have a refresh token...
+                    if (tokens.refreshToken) {
+                        return this.client.tokenHandler.performTokenRequest(
+                            this.client.configuration,
+                            new AppAuth.TokenRequest({
+                                client_id: this.client.clientId,
+                                redirect_uri: this.client.redirectUri,
+                                grant_type: AppAuth.GRANT_TYPE_REFRESH_TOKEN,
+                                refresh_token: tokens.refreshToken,
+                                extras: {
+                                    scope: config.scopes
+                                }
+                            })
+                        ).then((token_endpoint_response) => {
+                            // and we can only use the refreshToken strategy if using the current refresh token actually works...
+                            if (token_endpoint_response.refreshToken &&
+                                token_endpoint_response.accessToken) {
+
+                                tokens.refreshToken = token_endpoint_response.refreshToken;
+                                tokens[resourceServer] = token_endpoint_response.accessToken;
+
+                                return this.updateTokensInIndexedDB(tokens)
+                                    .then(() => "refreshToken");
+                            } else {
+                                // refresh grant didn't return tokens?
+                                return authCodeGrantStrategy.call(this);
+                            }
+                        }, () => {
+                            // refresh grant failed for some reason
+                            return authCodeGrantStrategy.call(this);
+                        });
+                    } else {
+                        // don't yet have a refresh token to use
+                        return authCodeGrantStrategy.call(this);
+                    }
+                });
+            }
         },
         getAuthzURL: function () {
             return new Promise((resolve) => {
@@ -204,6 +244,28 @@
                         var tokens = objectStoreRequest.result;
                         dbReq.result.close();
                         resolve(tokens);
+                    };
+                    objectStoreRequest.onerror = reject;
+                };
+
+                dbReq.onupgradeneeded = upgradeDb;
+                dbReq.onsuccess = onsuccess;
+                dbReq.onerror = reject;
+            });
+        },
+        updateTokensInIndexedDB: function (tokens) {
+            return new Promise((resolve, reject) => {
+                var dbReq = indexedDB.open("appAuth"),
+                    upgradeDb = (function () {
+                        return dbReq.result.createObjectStore(this.appAuthConfig.clientId);
+                    }).bind(this),
+                    onsuccess;
+                onsuccess = () => {
+                    var objectStoreRequest = dbReq.result.transaction([this.client.clientId], "readwrite")
+                        .objectStore(this.client.clientId).put(tokens, "tokens");
+                    objectStoreRequest.onsuccess = () => {
+                        dbReq.result.close();
+                        resolve();
                     };
                     objectStoreRequest.onerror = reject;
                 };
@@ -306,10 +368,17 @@
                 if (tokens.accessToken) {
                     revokeRequests.push(new AppAuth.RevokeTokenRequest({
                         client_id: this.appAuthConfig.clientId,
+                        token_type_hint: "access_token",
                         token: tokens.accessToken
                     }));
                 }
-
+                if (tokens.refreshToken) {
+                    revokeRequests.push(new AppAuth.RevokeTokenRequest({
+                        client_id: this.appAuthConfig.clientId,
+                        token_type_hint: "refresh_token",
+                        token: tokens.refreshToken
+                    }));
+                }
                 return Promise.all(
                     revokeRequests.concat(
                         Object.keys(this.appAuthConfig.resourceServers)
@@ -317,6 +386,7 @@
                             .map((function (rs) {
                                 return new AppAuth.RevokeTokenRequest({
                                     client_id: this.appAuthConfig.clientId,
+                                    token_type_hint: "access_token",
                                     token: tokens[rs]
                                 });
                             }).bind(this))
