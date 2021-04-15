@@ -11,20 +11,20 @@
         /** @function init
          * @param {Object} config - configuration needed for working with the OP
          * @param {string} config.clientId - The id of this RP client within the OP
-         * @param {boolean} config.oidc [true] - indicate whether or not you want OIDC included
+         * @param {boolean} [config.oidc=true] - indicate whether or not you want OIDC included
          * @param {string} config.authorizationEndpoint - Full URL to the OP authorization endpoint
          * @param {string} config.tokenEndpoint - Full URL to the OP token endpoint
          * @param {string} config.revocationEndpoint - Full URL to the OP revocation endpoint
          * @param {string} config.endSessionEndpoint - Full URL to the OP end session endpoint
          * @param {object} config.resourceServers - Map of resource server urls to the scopes which they require. Map values are space-delimited list of scopes requested by this RP for use with this RS
-         * @param {object} config.extras -Additional parameters to include in the authorization request
-         * @param {function} config.interactionRequiredHandler - optional function to be called anytime interaction is required. When not provided, default behavior is to redirect the current window to the authorizationEndpoint
+         * @param {object} [config.extras] -Additional parameters to include in the authorization request
+         * @param {function} [config.interactionRequiredHandler] - optional function to be called anytime interaction is required. When not provided, default behavior is to redirect the current window to the authorizationEndpoint
          * @param {function} config.tokensAvailableHandler - function to be called every time tokens are available - both initially and upon renewal
-         * @param {number} config.renewCooldownPeriod [1] - Minimum time (in seconds) between requests to the authorizationEndpoint for token renewal attempts
-         * @param {string} config.redirectUri [appAuthHelperRedirect.html] - The redirect uri registered in the OP
-         * @param {string} config.serviceWorkerUri [appAuthServiceWorker.js] - The path to the service worker script
-         * @param {string} config.identityProxyPreference [serviceWorker] - Preferred identity proxy implementation (serviceWorker or XHR)
-         * @param {string} config.renewStrategy [authCode] - Preferred access token renewal strategy (authcode or refreshToken)
+         * @param {number} [config.renewCooldownPeriod=1] - Minimum time (in seconds) between requests to the authorizationEndpoint for token renewal attempts
+         * @param {string} [config.redirectUri=appAuthHelperRedirect.html] - The redirect uri registered in the OP
+         * @param {string} [config.serviceWorkerUri=appAuthServiceWorker.js] - The path to the service worker script
+         * @param {string} [config.identityProxyPreference=serviceWorker] - Preferred identity proxy implementation (serviceWorker or XHR)
+         * @param {string} [config.renewStrategy=authCode] - Preferred access token renewal strategy (authcode or refreshToken)
          */
         init: function (config) {
             var calculatedRedirectUriLink = document.createElement("a"),
