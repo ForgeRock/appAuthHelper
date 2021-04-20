@@ -38,7 +38,7 @@
             })
             .finally(() => {
                 // if we are running in the context of a full window (rather than an iframe)
-                if (parent === window) {
+                if (!parent.document.getElementById('AppAuthIframe')) {
                     setTimeout(() => {
                         var appLocation = document.createElement("a");
                         appLocation.href = appAuthConfig.appLocation || ".";
