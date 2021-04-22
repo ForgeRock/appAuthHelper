@@ -107,7 +107,7 @@
                     } else {
                         this.registerIdentityProxy()
                             .then((function () {
-                                return this.tokensAvailableHandler(e.data.idTokenClaims);
+                                return this.tokensAvailableHandler(e.data.idTokenClaims, e.data.idToken);
                             }).bind(this));
                     }
 

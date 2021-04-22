@@ -87,6 +87,7 @@
                                     }
                                     this.updateTokensInIndexedDB(tokens).then(() => resolve({
                                         claims: this.appAuthConfig.oidc ? this.getIdTokenClaims(tokens.idToken) : {},
+                                        idToken: tokens.idToken,
                                         resourceServer: currentResourceServer
                                     }));
                                 });
@@ -101,6 +102,7 @@
                         this.fetchTokensFromIndexedDB().then((tokens) => {
                             if (tokens) {
                                 resolve({
+                                    idToken: tokens.idToken,
                                     claims: this.appAuthConfig.oidc ? this.getIdTokenClaims(tokens.idToken) : {}
                                 });
                             } else {
