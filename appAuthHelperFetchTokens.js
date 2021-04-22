@@ -20,8 +20,9 @@
                 window.location.hash = "";
                 parent.postMessage({
                     message: "appAuth-tokensAvailable",
+                    resourceServer: data.resourceServer,
                     idTokenClaims: data.claims,
-                    resourceServer: data.resourceServer
+                    idToken: data.idToken
                 }, TRUSTED_ORIGIN);
             },
             (error) => {
@@ -87,7 +88,8 @@
                 .then((data) => {
                     parent.postMessage({
                         message: "appAuth-tokensAvailable",
-                        idTokenClaims: data.claims
+                        idTokenClaims: data.claims,
+                        idToken: data.idToken
                     }, TRUSTED_ORIGIN);
                 }, () => {
                     tokenManager.silentAuthzRequest();
