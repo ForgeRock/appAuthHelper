@@ -20,7 +20,7 @@
 
 <body>
     <div id="userDetails"></div>
-    <a href='#' onclick='AppAuthHelper.logout().then(function () { location.reload(); }); return false;'>Logout</a>
+    <a href='#' onclick='AppAuthHelper.logout(({ revoke_tokens: true, end_session: true }).then(function () { location.reload(); }); return false;'>Logout</a>
 </body>
 
 <script src="appAuthHelperBundle.js"></script>
@@ -39,20 +39,30 @@
 
         resourceServers: {
             "https://default.iam.example.com/am/oauth2/userinfo": "profile",
-            "https://default.iam.example.com/openidm": "openid"
+            "https://default.iam.example.com/openidm": "fr:idm:*"
         },
         /*
-        interactionRequiredHandler: function () {
+        interactionRequiredHandler: function (authorization_request_url, error_reported) {
             // If you want to handle login at the IDP using some mechanism other than
             // the default (standard OAuth2 redirection to the authorizationEndpoint),
             // you can add that logic here.
             // Call AppAuthHelper.getTokens(); again when login is finished.
         },
         */
-        tokensAvailableHandler: function (claims) {
+        tokensAvailableHandler: function (claims, id_token, interactively_logged_in) {
             // This is a great place to startup the parts of your SPA that are for logged-in users.
+
             // The "claims" parameter is the content of the id_token, which tells you useful details
-            // about the logged-in user.
+            // about the logged-in user. It will be undefined if you aren't using OIDC.
+
+            // The "id_token" is the actual id_token value, which can be useful to have in its original form
+            // for various use-cases; OP-based session management may be one such case.
+            // See the companion library "oidcsessioncheck" for further details.
+
+            // The "interactively_logged_in" parameter is a boolean; it lets your app know that tokens
+            // are available because the user just returned from the OP (rather than reading them from browser
+            // storage). This may be useful in some circumstances for user-experience concerns; for example,
+            // you should take care to avoid looping redirections between the OP and RP by checking this value.
 
             // Here is a sample "application" that just makes some requests to
             // resource servers and outputs the response on the page.

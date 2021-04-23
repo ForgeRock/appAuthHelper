@@ -361,20 +361,20 @@
             }
             return headersObj;
         },
-        logout: function () {
+        logout: function (options) {
             return this.fetchTokensFromIndexedDB().then((function (tokens) {
                 if (!tokens) {
                     return;
                 }
                 var revokeRequests = [];
-                if (tokens.accessToken) {
+                if (options.revoke_tokens && tokens.accessToken) {
                     revokeRequests.push(new AppAuth.RevokeTokenRequest({
                         client_id: this.appAuthConfig.clientId,
                         token_type_hint: "access_token",
                         token: tokens.accessToken
                     }));
                 }
-                if (tokens.refreshToken) {
+                if (options.revoke_tokens && tokens.refreshToken) {
                     revokeRequests.push(new AppAuth.RevokeTokenRequest({
                         client_id: this.appAuthConfig.clientId,
                         token_type_hint: "refresh_token",
@@ -384,7 +384,7 @@
                 return Promise.all(
                     revokeRequests.concat(
                         Object.keys(this.appAuthConfig.resourceServers)
-                            .filter(function (rs) { return !!tokens[rs]; })
+                            .filter(function (rs) { return options.revoke_tokens && !!tokens[rs]; })
                             .map((function (rs) {
                                 return new AppAuth.RevokeTokenRequest({
                                     client_id: this.appAuthConfig.clientId,
@@ -399,7 +399,7 @@
                         );
                     }).bind(this))
                 ).then((function () {
-                    if (this.appAuthConfig.oidc && tokens.idToken && this.client.configuration.endSessionEndpoint) {
+                    if (options.end_session && this.appAuthConfig.oidc && tokens.idToken && this.client.configuration.endSessionEndpoint) {
                         return fetch(this.client.configuration.endSessionEndpoint + "?id_token_hint=" + tokens.idToken);
                     } else {
                         return;

@@ -1,12 +1,12 @@
 # App Auth JS Helper
 
-Wrapper for [AppAuthJS](https://www.npmjs.com/package/@openid/appauth) to assist with the full OAuth2 / OIDC token life-cycle.
+Wrapper for [AppAuthJS](https://www.npmjs.com/package/@openid/appauth) to assist with the full OAuth2 / OIDC token life-cycle in a SPA setting.
 
 ## Purpose
 
 The primary goal of both AppAuth and this helper is to allow your single-page application to obtain OAuth2 access tokens and OpenID Connect id tokens. AppAuth for JavaScript provides an SDK for performing a PKCE-based Authorization Code flow within a JavaScript-based application. It is designed to be the generic underlying library for any type of JS app - not necessarily browser-based single-paged applications. The specific patterns for how you would use it within a single-page application are therefore not very clear. The goal of this helper library is to make that specific integration much easier.
 
-There are several aspects that this helper aims to add on top of AppAuth:
+There are several aspects that this helper aims to add on top of AppAuth-JS:
 
  - **Simpler application integration**
  - **Silent token acquisition**
@@ -45,9 +45,9 @@ In the case when your request fails because the access token has expired, the id
 >     request a new access token and retry the protected resource
 >     request.
 
-Thanks to the identity proxy, you won't have to worry about implementing this retry logic yourself. Just make the calls to your APIs and let the proxy handle the tokens. For more details on how the identity proxy accomplishes this, review this article: [Service Workers as an Identity Proxy](./service_workers.md).
+Thanks to the identity proxy, you won't have to worry about implementing this retry logic yourself. Just make the calls to your APIs and let the proxy handle the tokens - your code won't even be aware of the renewals going on behind the scenes. For more details on how the identity proxy accomplishes this, review this article: [Service Workers as an Identity Proxy](./service_workers.md).
 
-AppAuthHelper has two ways to renew an expired access token: a silent authorization code grant (the default behavior), or a refresh token grant. If this happens while the user still has a valid session within the OP (and the OP no longer prompts for consent), a new access token can be silently obtained by initiating a new authorization code grant within a hidden iframe. If you do not want your RP to depend on an active session within the OP (or if the OP requires consent for each authorization code grant) then you can tell AppAuthHelper to use a refresh token grant instead. Be sure the OP has been configured to allow this RP to use the refresh token grant if you choose this option.
+AppAuthHelper has two ways to renew an expired access token: a silent authorization code grant (the default behavior), or a refresh token grant. If token expiration happens while the user still has a valid session within the OP (and the OP no longer prompts for consent), a new access token can be silently obtained by initiating a new authorization code grant within a hidden iframe. If you do not want your RP to depend on an active session within the OP (or if the OP requires consent for each authorization code grant) then you can tell AppAuthHelper to use a refresh token grant instead. Be sure the OP has been configured to allow this RP to use the refresh token grant if you choose this option.
 
 ## Using this library
 
@@ -87,10 +87,20 @@ Once the library is loaded, you have to provide the environmental details along 
 
             // this assumes that 'loginIframe' is an iframe that has already been mounted to the DOM
         },
-        tokensAvailableHandler: function (claims) {
+        tokensAvailableHandler: function (claims, id_token, interactively_logged_in) {
             // This is a great place to startup the parts of your SPA that are for logged-in users.
+
             // The "claims" parameter is the content of the id_token, which tells you useful details
-            // about the logged-in user.
+            // about the logged-in user. It will be undefined if you aren't using OIDC.
+
+            // The "id_token" is the actual id_token value, which can be useful to have in its original form
+            // for various use-cases; OP-based session management may be one such case.
+            // See the companion library "oidcsessioncheck" for further details.
+
+            // The "interactively_logged_in" parameter is a boolean; it lets your app know that tokens
+            // are available because the user just returned from the OP (rather than reading them from browser
+            // storage). This may be useful in some circumstances for user-experience concerns; for example,
+            // you should take care to avoid looping redirections between the OP and RP by checking this value.
 
             // At this point your application code can start making network calls to the resource servers
             // you have configured, above.
@@ -118,7 +128,7 @@ Once the library is loaded, you have to provide the environmental details along 
  - extras - Optional simple map of additional key=value pairs you would like to pass to the authorization endpoint.
  - tokensAvailableHandler - function to be called when tokens are first available
  - interactionRequiredHandler - optional function to be called when the user needs to interact with the OP; for example, to log in.
- - renewCooldownPeriod [default: 1] - Minimum time (in seconds) between requests to the authorizationEndpoint for token renewal attempts
+ - renewCooldownPeriod [default: 1] - Minimum time (in seconds) between requests to the OP for token renewal attempts
  - oidc [default: true] - indicate whether or not you want to get back an id_token
  - identityProxyPreference [default: serviceWorker] - Preferred identity proxy implementation (serviceWorker or XHR)
  - renewStrategy [default: authCode] - Preferred method for obtaining fresh (and down-scoped) access tokens (authCode or refreshToken); see "How it works" for details.
@@ -141,11 +151,16 @@ If you don't want the default behavior of redirecting your users to the authoriz
 
 *Logging Out:*
 
-    AppAuthHelper.logout().then(function () {
+    AppAuthHelper.logout({
+        revoke_tokens: true,
+        end_session: true
+    }).then(function () {
         // whatever your application should do after the tokens are removed
     });
 
-Calling `AppAuthHelper.logout()` will trigger calls to both the access token revocation endpoint, as well as the id token end session endpoint. When both of those have completed, the tokens are removed from browser storage. A promise is returned from `logout()`; use  `.then()` to do whatever is appropriate for your application after the session is terminated.
+Calling `AppAuthHelper.logout(options)` can trigger calls to both the access token revocation endpoint, as well as the id token end session endpoint. By default, it will revoke all access tokens (and if present, the refresh token) and it will call the end session endpoint if there is an id_token available to pass it. If you don't want to revoke tokens or end the OP session as part of logout, you can override this behavior by setting the appropriate option to `false`. Regardless of the options provided, after that process completes the tokens are removed from browser storage. A promise is returned from `logout()`; use  `.then()` to do whatever is appropriate for your application after the session is terminated.
+
+You may want to consider setting `end_session: false` if you are calling `logout` in response to an OIDC session check failure (see [oidcSessionCheck](https://github.com/ForgeRock/oidcSessionCheck) for an example of such a case). The session check failure could be due to browser restrictions on third-party cookies, so you may be able to recover from this type of failure by performing a full-page redirection so long as you don't actively try to terminate the OP session first.
 
 ### Using Tokens
 
@@ -216,4 +231,4 @@ AppAuthHelper was developed by ForgeRock, Inc. Please file issues and open pull 
 
 ## License
 
-Apache 2.0. Portions Copyright ForgeRock, Inc. 2018-2019
+Apache 2.0. Portions Copyright ForgeRock, Inc. 2018-2021
