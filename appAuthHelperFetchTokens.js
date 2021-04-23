@@ -39,10 +39,11 @@
             })
             .finally(() => {
                 // if we are running in the context of a full window (rather than an iframe)
-                if (!parent.document.getElementById('AppAuthIframe')) {
+                if (!parent.document.getElementById("AppAuthIframe")) {
                     setTimeout(() => {
                         var appLocation = document.createElement("a");
                         appLocation.href = appAuthConfig.appLocation || ".";
+                        appLocation.hash = appLocation.hash + "&loggedin=true";
                         window.location.assign(appLocation.href);
                     }, 0);
                 }
@@ -67,7 +68,7 @@
             );
             break;
         case "appAuth-logout":
-            tokenManager.logout().then(() => {
+            tokenManager.logout(e.data.options).then(() => {
                 parent.postMessage({
                     message: "appAuth-logoutComplete"
                 }, TRUSTED_ORIGIN);

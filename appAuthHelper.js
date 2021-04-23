@@ -19,7 +19,7 @@
          * @param {object} config.resourceServers - Map of resource server urls to the scopes which they require. Map values are space-delimited list of scopes requested by this RP for use with this RS
          * @param {object} [config.extras] -Additional parameters to include in the authorization request
          * @param {function} [config.interactionRequiredHandler] - optional function to be called anytime interaction is required. When not provided, default behavior is to redirect the current window to the authorizationEndpoint
-         * @param {function} config.tokensAvailableHandler - function to be called every time tokens are available - both initially and upon renewal
+         * @param {function} config.tokensAvailableHandler - function to be called once tokens are available - either from the browser storage or newly fetched.
          * @param {number} [config.renewCooldownPeriod=1] - Minimum time (in seconds) between requests to the authorizationEndpoint for token renewal attempts
          * @param {string} [config.redirectUri=appAuthHelperRedirect.html] - The redirect uri registered in the OP
          * @param {string} [config.serviceWorkerUri=appAuthServiceWorker.js] - The path to the service worker script
@@ -37,7 +37,8 @@
 
             this.renewCooldownPeriod = config.renewCooldownPeriod || 1;
             this.appAuthConfig = {
-                appLocation: document.location.href
+                // discard the &loggedin=true part that might be included by us
+                appLocation: document.location.href.replace(/#?&loggedin=true$/, "")
             };
             this.tokensAvailableHandler = config.tokensAvailableHandler;
             this.interactionRequiredHandler = config.interactionRequiredHandler;
@@ -88,12 +89,6 @@
                 }
                 switch (e.data.message) {
                 case "appAuth-tokensAvailable":
-                    var originalWindowHash = localStorage.getItem("originalWindowHash-" + this.appAuthConfig.clientId);
-                    if (originalWindowHash !== null) {
-                        window.location.hash = originalWindowHash;
-                        localStorage.removeItem("originalWindowHash-" + this.appAuthConfig.clientId);
-                    }
-
                     // this should only be set as part of token renewal
                     if (e.data.resourceServer) {
                         localStorage.removeItem("currentResourceServer");
@@ -105,9 +100,20 @@
 
                         this.identityProxy.tokensRenewed(e.data.resourceServer);
                     } else {
+                        var originalWindowHash = localStorage.getItem("originalWindowHash-" + this.appAuthConfig.clientId),
+                            returnedFromLogin = !!window.location.hash.match(/&loggedin=true$/);
+
+                        if (originalWindowHash === null || originalWindowHash === "" || originalWindowHash === "#") {
+                            history.replaceState(undefined, undefined, window.location.href.replace(/#&loggedin=true$/, ""));
+                        } else {
+                            history.replaceState(undefined, undefined, "#" + originalWindowHash.replace("#", ""));
+                        }
+
+                        localStorage.removeItem("originalWindowHash-" + this.appAuthConfig.clientId);
+
                         this.registerIdentityProxy()
                             .then((function () {
-                                return this.tokensAvailableHandler(e.data.idTokenClaims, e.data.idToken);
+                                return this.tokensAvailableHandler(e.data.idTokenClaims, e.data.idToken, returnedFromLogin);
                             }).bind(this));
                     }
 
@@ -118,11 +124,9 @@
                     } else {
                         // Default behavior for when interaction is required is to redirect to the OP for login.
 
-                        if (window.location.hash.replace("#","").length) {
-                            // When interaction is required, the current hash state may be lost during redirection.
-                            // Save it in localStorage so that it can be returned to upon successfully authenticating
-                            localStorage.setItem("originalWindowHash-" + this.appAuthConfig.clientId, window.location.hash);
-                        }
+                        // When interaction is required, the current hash state may be lost during redirection.
+                        // Save it in localStorage so that it can be returned to upon successfully authenticating
+                        localStorage.setItem("originalWindowHash-" + this.appAuthConfig.clientId, window.location.hash);
                         window.location.href = e.data.authorizationUrl;
                     }
 
@@ -209,12 +213,16 @@
          * logout() will revoke the access token, use the id_token to end the session on the OP, clear them from the
          * local session, and finally notify the SPA that they are gone.
          */
-        logout: function () {
+        logout: function (options) {
+            options = options || {};
+            options.revoke_tokens = options.revoke_tokens!==false;
+            options.end_session = options.end_session!==false;
             return new Promise((function (resolve) {
                 this.logoutComplete = resolve;
                 this.appAuthIframe.contentWindow.postMessage({
                     message: "appAuth-logout",
-                    config: this.appAuthConfig
+                    config: this.appAuthConfig,
+                    options: options
                 }, this.iframeOrigin);
             }).bind(this));
         },
