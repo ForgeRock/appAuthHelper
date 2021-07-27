@@ -95,7 +95,7 @@ Once the library is loaded, you have to provide the environmental details along 
 
             // The "id_token" is the actual id_token value, which can be useful to have in its original form
             // for various use-cases; OP-based session management may be one such case.
-            // See the companion library "oidcsessioncheck" for further details.
+            // See the companion library "https://github.com/ForgeRock/oidcSessionCheck" for further details.
 
             // The "interactively_logged_in" parameter is a boolean; it lets your app know that tokens
             // are available because the user just returned from the OP (rather than reading them from browser
@@ -126,7 +126,7 @@ Once the library is loaded, you have to provide the environmental details along 
  - endSessionEndpoint - Full URL to the OP end session endpoint
  - resourceServers - Optional map of resource server urls to the scopes which they require. Map values are space-delimited list of scopes requested by this RP for use with this RS. If not specified, no tokens will be automatically included in any network request.
  - extras - Optional simple map of additional key=value pairs you would like to pass to the authorization endpoint.
- - tokensAvailableHandler - function to be called when tokens are first available
+ - tokensAvailableHandler - function to be called once tokens are available - either from the browser storage or newly fetched
  - interactionRequiredHandler - optional function to be called when the user needs to interact with the OP; for example, to log in.
  - renewCooldownPeriod [default: 1] - Minimum time (in seconds) between requests to the OP for token renewal attempts
  - oidc [default: true] - indicate whether or not you want to get back an id_token
@@ -174,7 +174,7 @@ You have the option to specify the type of identity proxy you prefer AppAuthHelp
 
 The serviceWorker option will install a service worker to intercept all outgoing network requests, to add the token (and renew it if needed). This option supports both `fetch` and `XHR` types of network traffic.
 
-The XHR option involves overriding the browser's native XHR object with the extra token management logic. This option is simpler and workers in more browsers, but it does not support the use of `fetch`. To use this you have to use the "compat" build, as described in "Supporting Legacy Browsers" below.
+The XHR option involves overriding the browser's native XHR object with the extra token management logic. This option is simpler and works in more browsers, but it does not support the use of `fetch`. To use this you have to use the "compat" build, as described in "Supporting Legacy Browsers" below.
 
 If for some reason you do not want the identity proxy to add the access token to your request, you can add the header `x-appauthhelper-anonymous: true` to your http request. Doing so instructs the identity proxy to skip its default behavior and instead just pass the request through; the only change is that the "x-appauthhelper-anonymous: true" header will be removed before the request is dispatched.
 
