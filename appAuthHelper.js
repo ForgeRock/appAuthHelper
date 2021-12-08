@@ -257,6 +257,12 @@
         },
         registerIdentityProxy: function () {
             return new Promise((function (resolve) {
+                // handle the case when the identity proxy was already registered
+                if (this.identityProxy) {
+                    resolve();
+                    return;
+                }
+
                 if (this.identityProxyPreference === "serviceWorker" && "serviceWorker" in navigator) {
                     var savedReg,tick;
                     var registerServiceWorker = (function() {
