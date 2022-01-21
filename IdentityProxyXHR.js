@@ -3,12 +3,12 @@
 
     var IdentityProxyCore = require("./IdentityProxyCore"),
         IdentityProxyXHR = function () {
-            var _this = this,
-                RealXHROpen = XMLHttpRequest.prototype.open,
-                RealXHRSetRequestHeader = XMLHttpRequest.prototype.setRequestHeader,
-                RealXHRGetAllResponseHeaders = XMLHttpRequest.prototype.getAllResponseHeaders,
-                RealXHRGetResponseHeader = XMLHttpRequest.prototype.getResponseHeader,
-                RealXHRSend = XMLHttpRequest.prototype.send;
+            var _this = this;
+            var RealXHROpen = XMLHttpRequest.prototype.open;
+            var RealXHRSetRequestHeader = XMLHttpRequest.prototype.setRequestHeader;
+            var RealXHRGetAllResponseHeaders = XMLHttpRequest.prototype.getAllResponseHeaders;
+            var RealXHRGetResponseHeader = XMLHttpRequest.prototype.getResponseHeader;
+            var RealXHRSend = XMLHttpRequest.prototype.send;
 
             /**
              * Override default methods for all XHR requests in order to add
@@ -18,6 +18,7 @@
                 if (typeof isAsync !== "undefined" && !isAsync) {
                     throw "Synchronous XHR requests not supported";
                 }
+                _this.setProxyCoreByUrl(url);
 
                 var calculatedUriLink = document.createElement("a");
                 calculatedUriLink.href = url;
@@ -40,6 +41,7 @@
                     return;
                 }
                 var resourceServer = _this.getResourceServerFromUrl(this.url);
+                _this.setProxyCoreByUrl(this.url);
                 if (resourceServer && !this.headers["authorization"]) {
                     this.customResponse = true;
                     _this.interceptRequest({

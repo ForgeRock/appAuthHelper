@@ -1,15 +1,41 @@
 (function () {
     "use strict";
+    var proxyConfigs = {};
 
-    module.exports = function IdentityProxyCore(resourceServers, transmissionPort) {
-        this.resourceServers = resourceServers;
-        this.transmissionPort = transmissionPort;
-        this.failedRequestQueue = this.failedRequestQueue || {};
+    module.exports = function IdentityProxyCore(resourceServers, transmissionPort, hostname) {
+        
+        this.addProxyCore(resourceServers, transmissionPort, hostname);
         return this;
     };
 
     module.exports.prototype = {
+        setProxyCoreByUrl: function (url) {
+            
+            let hostname = Object.keys(proxyConfigs).filter((proxyCoreHost) => {
+                return  url.indexOf(proxyCoreHost) >= 0; 
+            })[0];
+            if (hostname) {
+                this.resourceServers = proxyConfigs[hostname].resourceServers;
+                this.transmissionPort = proxyConfigs[hostname].transmissionPort;
+                this.failedRequestQueue = proxyConfigs[hostname].failedRequestQueue;
+            } else {
+                this.resourceServers = [];
+                this.transmissionPort = {};
+                this.failedRequestQueue = {};
+            }
+        },
+        addProxyCore: function (resourceServers, transmissionPort, hostname) {
+            proxyConfigs[hostname] = {
+                resourceServers: resourceServers,
+                transmissionPort: transmissionPort,
+                failedRequestQueue: this.failedRequestQueue || {},
+            };
+        },
+        removeProxyCore: function (hostname) {
+            delete proxyConfigs[hostname];
+        },
         renewTokens: function (resourceServer) {
+            this.setProxyCoreByUrl(resourceServer);
             this.transmissionPort.postMessage({
                 "message": "renewTokens",
                 "resourceServer": resourceServer

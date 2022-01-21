@@ -10,6 +10,7 @@
             clientId: this.appAuthConfig.clientId,
             scopes: this.appAuthConfig.scopes,
             redirectUri: this.appAuthConfig.redirectUri,
+            authId: this.appAuthConfig.authId,
             configuration: new AppAuth.AuthorizationServiceConfiguration(this.appAuthConfig.endpoints),
             notifier: new AppAuth.AuthorizationNotifier(),
             authorizationHandler: new AppAuth.RedirectRequestHandler(),
@@ -32,6 +33,7 @@
             }
         }).bind(this));
 
+        // return the current config with 
         return this;
     };
 
@@ -63,6 +65,7 @@
                         this.client.tokenHandler
                             .performTokenRequest(this.client.configuration, request)
                             .then((function (token_endpoint_response) {
+
                                 delete this.client.code;
                                 delete this.client.request;
                                 delete this.client.response;
@@ -85,11 +88,12 @@
                                     } else {
                                         tokens.accessToken = token_endpoint_response.accessToken;
                                     }
-                                    this.updateTokensInIndexedDB(tokens).then(() => resolve({
-                                        claims: this.appAuthConfig.oidc ? this.getIdTokenClaims(tokens.idToken) : {},
-                                        idToken: tokens.idToken,
-                                        resourceServer: currentResourceServer
-                                    }));
+                                    this.updateTokensInIndexedDB(tokens).then(() => {
+                                        return resolve({
+                                            claims: this.appAuthConfig.oidc ? this.getIdTokenClaims(tokens.idToken) : {},
+                                            idToken: tokens.idToken,
+                                            resourceServer: currentResourceServer
+                                        });});
                                 });
                             }).bind(this));
 
@@ -117,6 +121,7 @@
          * Helper function that reduces the amount of duplicated code, as there are several different
          * places in the code that require initiating an authorization request.
          */
+        //NOTE: Local to TOKEN MANAGER
         authzRequest: function (client, config, extras) {
             extras = extras || {};
             var request = new AppAuth.AuthorizationRequest({
@@ -225,13 +230,12 @@
         },
         fetchTokensFromIndexedDB: function () {
             return new Promise((resolve, reject) => {
-                var dbReq = indexedDB.open("appAuth"),
-                    upgradeDb = (function () {
-                        return dbReq.result.createObjectStore(this.appAuthConfig.clientId);
-                    }).bind(this),
-                    onsuccess;
-                onsuccess = () => {
-                    if (!dbReq.result.objectStoreNames.contains(this.appAuthConfig.clientId)) {
+                var dbReq = indexedDB.open("appAuth");
+                var upgradeDb = (function () {
+                    return dbReq.result.createObjectStore(this.appAuthConfig.authId);
+                }).bind(this);
+                var onsuccess = () => {
+                    if (!dbReq.result.objectStoreNames.contains(this.appAuthConfig.authId)) {
                         var version = dbReq.result.version;
                         version++;
                         dbReq.result.close();
@@ -240,8 +244,8 @@
                         dbReq.onsuccess = onsuccess;
                         return;
                     }
-                    var objectStoreRequest = dbReq.result.transaction([this.appAuthConfig.clientId], "readonly")
-                        .objectStore(this.appAuthConfig.clientId).get("tokens");
+                    var objectStoreRequest = dbReq.result.transaction([this.appAuthConfig.authId], "readonly")
+                        .objectStore(this.appAuthConfig.authId).get("tokens");
                     objectStoreRequest.onsuccess = () => {
                         var tokens = objectStoreRequest.result;
                         dbReq.result.close();
@@ -249,6 +253,7 @@
                     };
                     objectStoreRequest.onerror = reject;
                 };
+                // };
 
                 dbReq.onupgradeneeded = upgradeDb;
                 dbReq.onsuccess = onsuccess;
@@ -257,14 +262,13 @@
         },
         updateTokensInIndexedDB: function (tokens) {
             return new Promise((resolve, reject) => {
-                var dbReq = indexedDB.open("appAuth"),
-                    upgradeDb = (function () {
-                        return dbReq.result.createObjectStore(this.appAuthConfig.clientId);
-                    }).bind(this),
-                    onsuccess;
-                onsuccess = () => {
-                    var objectStoreRequest = dbReq.result.transaction([this.client.clientId], "readwrite")
-                        .objectStore(this.client.clientId).put(tokens, "tokens");
+                var dbReq = indexedDB.open("appAuth");
+                var upgradeDb = (function () {
+                    return dbReq.result.createObjectStore(this.appAuthConfig.authId);
+                }).bind(this);
+                var onsuccess = () => {
+                    var objectStoreRequest = dbReq.result.transaction([this.client.authId], "readwrite")
+                        .objectStore(this.client.authId).put(tokens, "tokens");
                     objectStoreRequest.onsuccess = () => {
                         dbReq.result.close();
                         resolve();
@@ -312,7 +316,8 @@
                         return Promise.reject("invalid_token");
                     }
                 })
-                .then((request) => fetch(request.url, request.options))
+                .then((request) => {
+                    return fetch(request.url, request.options);})
                 .then((response) => {
                     if (this.getAuthHeaderDetails(response)["error"] === "invalid_token") {
                         return Promise.reject("invalid_token");
@@ -320,7 +325,8 @@
                         return response;
                     }
                 })
-                .then((response) => this.serializeResponse(response));
+                .then((response) => {
+                    return this.serializeResponse(response);});
         },
         getAuthHeaderDetails: function (resp) {
             var authHeader = resp.headers.get("www-authenticate");
@@ -338,14 +344,16 @@
             }
         },
         serializeResponse: function (response) {
-            return response.text().then((bodyText) => ({
-                body: bodyText,
-                init: {
-                    status: response.status,
-                    statusText: response.statusText,
-                    headers: this.serializeHeaders(response.headers)
-                }
-            }));
+            return response.text().then((bodyText) => {
+                return {
+                    body: bodyText,
+                    init: {
+                        status: response.status,
+                        statusText: response.statusText,
+                        headers: this.serializeHeaders(response.headers)
+                    }
+                };
+            });
         },
         serializeHeaders: function (headers) {
             if (!headers) { return undefined; }
@@ -408,8 +416,8 @@
                     return new Promise((function (resolve, reject) {
                         var dbReq = indexedDB.open("appAuth");
                         dbReq.onsuccess = (function () {
-                            var objectStoreRequest = dbReq.result.transaction([this.appAuthConfig.clientId], "readwrite")
-                                .objectStore(this.appAuthConfig.clientId).clear();
+                            var objectStoreRequest = dbReq.result.transaction([this.appAuthConfig.authId], "readwrite")
+                                .objectStore(this.appAuthConfig.authId).clear();
                             dbReq.result.close();
                             objectStoreRequest.onsuccess = resolve;
                         }).bind(this);
