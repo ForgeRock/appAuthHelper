@@ -12,6 +12,7 @@
          * @param {Object} config - configuration needed for working with the OP
          * @param {string} config.clientId - The id of this RP client within the OP
          * @param {boolean} [config.oidc=true] - indicate whether or not you want OIDC included
+         * @param {boolean} config.attemptSilentAuthGrant - indicate whether or not you want to try a silent auth code grant in a hidden iframe
          * @param {string} config.authorizationEndpoint - Full URL to the OP authorization endpoint
          * @param {string} config.tokenEndpoint - Full URL to the OP token endpoint
          * @param {string} config.revocationEndpoint - Full URL to the OP revocation endpoint
@@ -43,7 +44,10 @@
             this.tokensAvailableHandler = config.tokensAvailableHandler;
             this.interactionRequiredHandler = config.interactionRequiredHandler;
             this.appAuthConfig.oidc = typeof config.oidc !== "undefined" ? !!config.oidc : true;
-            this.appAuthConfig.renewStrategy = config.renewStrategy || "authCode";
+
+            this.appAuthConfig.attemptSilentAuthGrant = typeof config.attemptSilentAuthGrant !== "undefined" ? !!config.attemptSilentAuthGrant : true;
+            this.appAuthConfig.renewStrategy = config.renewStrategy || (this.appAuthConfig.attemptSilentAuthGrant ? "authCode" : "refreshToken");
+
             this.pendingResourceServerRenewals = [];
             this.identityProxyPreference = config.identityProxyPreference || "serviceWorker";
 
