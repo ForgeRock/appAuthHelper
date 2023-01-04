@@ -125,7 +125,17 @@
                         authId,
                     }, TRUSTED_ORIGIN);
                 }, () => {
-                    tokenManagerInstance.silentAuthzRequest();
+                    if (e.data.config.attemptSilentAuthGrant) {
+                        tokenManagerInstance.silentAuthzRequest();
+                    } else {
+                        tokenManagerInstance.getAuthzURL().then((url) =>
+                            parent.postMessage({
+                                message: "appAuth-interactionRequired",
+                                error: "Stored tokens unavailable and silent auth code grant not attempted",
+                                authorizationUrl: url
+                            }, TRUSTED_ORIGIN)
+                        );
+                    }
                 });
             break;
         case "makeRSRequest":
