@@ -93,7 +93,17 @@
                         idToken: data.idToken
                     }, TRUSTED_ORIGIN);
                 }, () => {
-                    tokenManager.silentAuthzRequest();
+                    if (e.data.config.attemptSilentAuthGrant) {
+                        tokenManager.silentAuthzRequest();
+                    } else {
+                        tokenManager.getAuthzURL().then((url) =>
+                            parent.postMessage({
+                                message: "appAuth-interactionRequired",
+                                error: "Stored tokens unavailable and silent auth code grant not attempted",
+                                authorizationUrl: url
+                            }, TRUSTED_ORIGIN)
+                        );
+                    }
                 });
             break;
         case "makeRSRequest":

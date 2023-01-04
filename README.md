@@ -112,6 +112,7 @@ Once the library is loaded, you have to provide the environmental details along 
         oidc: true,
         identityProxyPreference: "XHR", // can be either "XHR" or "serviceWorker"
         renewStrategy: "authCode", // can be either "authCode" or "refreshToken"
+        attemptSilentAuthGrant: true, // if false, appAuthHelper won't use iframes to attempt to make silent auth code grants
         redirectUri: "appAuthHelperRedirect.html", // can be a relative or absolute url
         serviceWorkerUri: "appAuthServiceWorker.js" // can be a relative or absolute url
     });
@@ -132,6 +133,7 @@ Once the library is loaded, you have to provide the environmental details along 
  - oidc [default: true] - indicate whether or not you want to get back an id_token
  - identityProxyPreference [default: serviceWorker] - Preferred identity proxy implementation (serviceWorker or XHR)
  - renewStrategy [default: authCode] - Preferred method for obtaining fresh (and down-scoped) access tokens (authCode or refreshToken); see "How it works" for details.
+ - attemptSilentAuthGrant [default: true] - By default appAuthHelper will try to silently acquire access tokens using a silent auth code grant in a hidden iframe. This may not always be possible, and may cause some issues with various OP vendors or in the context of third-party cookie restrictions. If set to false, the default renewStrategy will become "refreshToken".
  - redirectUri [default: appAuthHelperRedirect.html] - The redirect uri registered in the OP
  - serviceWorkerUri [default: appAuthServiceWorker.js] - Path to the service worker script. Make sure it is located low enough in your URL path so that its scope encapsulates all application code making network requests. See [Why is my service worker failing to register?](https://developer.mozilla.org/en-US/docs/Web/API/Service_Worker_API/Using_Service_Workers#Why_is_my_service_worker_failing_to_register) if you have questions.
 
