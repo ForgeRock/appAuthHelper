@@ -47,7 +47,7 @@
             appConfigs[authId].appAuthConfig = {
                 // discard the &loggedin=true part that might be included by us
                 appLocation: document.location.href.replace(/#?&loggedin=true$/, ""),
-                appHostname: new URL(config.authorizationEndpoint).hostname,
+                appHostname: new URL(config.authorizationEndpoint).host,
                 authId,
             };
             appConfigs[authId].tokensAvailableHandler = config.tokensAvailableHandler;
@@ -229,7 +229,7 @@
          * tokens are still valid, however - you must be prepared to handle the case when they are not.
          */
         getTokens: function (authIds) {
-            var iterate = authIds || [PRIMARY_AUTH_ID]; 
+            var iterate = authIds || [PRIMARY_AUTH_ID];
             iterate.forEach(function(authId) {
                 appConfigs[authId].appAuthIframe.contentWindow.postMessage({
                     message: "appAuth-getAvailableData",
