@@ -10,7 +10,7 @@
     module.exports.prototype = {
         setProxyCoreByUrl: function (url) {
             let hostname = Object.keys(proxyConfigs).filter((proxyCoreHost) => {
-                return proxyConfigs[proxyCoreHost].resourceServers.filter((rs) => url.indexOf(rs) >= 0);
+                return proxyConfigs[proxyCoreHost].resourceServers.filter((rs) => url.indexOf(rs) >= 0).length;
             })[0];
             if (hostname) {
                 this.resourceServers = proxyConfigs[hostname].resourceServers;
