@@ -124,6 +124,7 @@
     IdentityProxyXHR.prototype = Object.create(IdentityProxyCore.prototype);
 
     IdentityProxyXHR.prototype.tokensRenewed = function (currentResourceServer) {
+        debugger;
         this.retryFailedRequests(currentResourceServer);
     };
 
