@@ -56,7 +56,9 @@
             if (this.failedRequestQueue && this.failedRequestQueue[resourceServer]) {
                 var p = this.failedRequestQueue[resourceServer].shift();
                 while (p) {
-                    p[0]();
+                    for (var i = 0; p.length > i; i++ ) {
+                        p[i]();
+                    }
                     p = this.failedRequestQueue[resourceServer].shift();
                 }
             }
