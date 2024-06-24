@@ -1,0 +1,14 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`appAuthHelper has the expected shape 1`] = `
+Object {
+  "getTokens": [Function],
+  "handleIdentityProxyMessage": [Function],
+  "init": [Function],
+  "logout": [Function],
+  "registerIdentityProxy": [Function],
+  "registerXHRProxy": [Function],
+  "renewTokens": [Function],
+  "whenRenewTokenFrameAvailable": [Function],
+}
+`;

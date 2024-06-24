@@ -178,7 +178,7 @@
                     }).bind(this);
                 }).bind(this))
             ]);
-
+            
             document.getElementsByTagName("body")[0].appendChild(this.appAuthIframe);
             document.getElementsByTagName("body")[0].appendChild(this.rsIframe);
             return promise;
