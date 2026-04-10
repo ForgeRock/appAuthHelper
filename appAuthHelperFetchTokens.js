@@ -26,7 +26,7 @@
         if (iss){
             const domain = new URL(iss).host;
             appAuthConfig = getMatchingAppAuthConfig(domain);
-        } else if (error && error === "interaction_required") {
+        } else if (error) {
             appAuthConfig = getMatchingAppAuthConfig(window.location.host);
         }
     }
