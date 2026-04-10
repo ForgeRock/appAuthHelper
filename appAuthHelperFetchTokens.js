@@ -10,24 +10,27 @@
     if (window.location.search) {
         const params = new URLSearchParams(window.location.search);
         const iss = params.get("iss");
-        const error = params.get("error");
         const getMatchingAppAuthConfig = ((domainToMatch) => {
             for (let key = 0; key < localStorage.length; key++ ) {
                 const itemName = localStorage.key(key);
                 if (itemName.includes("appAuthConfig-")) {
                     const appAuthConfig = JSON.parse(localStorage.getItem(itemName));
-                    const match = appAuthConfig && domainToMatch === appAuthConfig.appHostname;
+                    const match = appAuthConfig && (
+                        domainToMatch ?
+                            domainToMatch === appAuthConfig.appHostname : 
+                            appAuthConfig.authId === "Primary"
+                    );
                     if (match) {
                         return appAuthConfig;
                     }
                 }
             }
         });
-        if (iss){
+        if (iss) {
             const domain = new URL(iss).host;
             appAuthConfig = getMatchingAppAuthConfig(domain);
-        } else if (error && error === "interaction_required") {
-            appAuthConfig = getMatchingAppAuthConfig(window.location.host);
+        } else {
+            appAuthConfig = getMatchingAppAuthConfig();
         }
     }
 
