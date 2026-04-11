@@ -404,11 +404,11 @@
                         return this.client.tokenHandler.performRevokeTokenRequest(
                             this.client.configuration,
                             revokeRequest
-                        );
+                        ).catch(() => "Errors during revocation; proceeding anyway...");
                     }).bind(this))
                 ).then((function () {
                     if (options.end_session && this.appAuthConfig.oidc && tokens.idToken && this.client.configuration.endSessionEndpoint) {
-                        return fetch(this.client.configuration.endSessionEndpoint + "?id_token_hint=" + tokens.idToken);
+                        return fetch(this.client.configuration.endSessionEndpoint + "?id_token_hint=" + tokens.idToken, {redirect: "manual", credentials: "include"});
                     } else {
                         return;
                     }
