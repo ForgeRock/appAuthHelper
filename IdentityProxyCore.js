@@ -16,10 +16,6 @@
                 this.resourceServers = proxyConfigs[hostname].resourceServers;
                 this.transmissionPort = proxyConfigs[hostname].transmissionPort;
                 this.failedRequestQueue = proxyConfigs[hostname].failedRequestQueue;
-            } else {
-                this.resourceServers = [];
-                this.transmissionPort = {};
-                this.failedRequestQueue = {};
             }
         },
         addProxyCore: function (resourceServers, transmissionPort, hostname) {
