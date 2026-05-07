@@ -55,7 +55,7 @@
             appConfigs[authId].tokensAvailableHandler = config.tokensAvailableHandler;
             appConfigs[authId].interactionRequiredHandler = config.interactionRequiredHandler;
             appConfigs[authId].appAuthConfig.oidc = typeof config.oidc !== "undefined" ? !!config.oidc : true;
-            appConfigs[authId].attemptSilentAuthGrant = typeof config.attemptSilentAuthGrant !== "undefined" ? !!config.attemptSilentAuthGrant : true;
+            appConfigs[authId].appAuthConfig.attemptSilentAuthGrant = typeof config.attemptSilentAuthGrant !== "undefined" ? !!config.attemptSilentAuthGrant : true;
             appConfigs[authId].appAuthConfig.renewStrategy = config.renewStrategy || "authCode";
             appConfigs[authId].pendingResourceServerRenewals = [];
             appConfigs[authId].identityProxyPreference = config.identityProxyPreference || "serviceWorker";
